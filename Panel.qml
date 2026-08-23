@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import qs.Commons
 import qs.Ui
+import "Model.js" as Model
 
 Panel {
   id: root
@@ -124,7 +125,15 @@ Panel {
               }
 
               Text {
-                text: "Connected"
+                text: Model.batteryText(modelData)
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+
+              Text {
+                visible: text !== ""
+                text: Model.connectivityText(modelData)
                 color: root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
@@ -132,7 +141,17 @@ Panel {
             }
 
             Button {
-              text: "Ring"
+              iconText: "󰂛"
+              tooltipText: "Send clipboard"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              bordered: true
+              onClicked: phone.sendClipboard(modelData.id)
+            }
+
+            Button {
+              iconText: "󰋚"
+              tooltipText: "Ring phone"
               foreground: root.foreground
               fontFamily: root.fontFamily
               bordered: true

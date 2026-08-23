@@ -30,10 +30,28 @@ function deviceSummary(devices) {
   return devices.length + " phones connected"
 }
 
+function batteryText(device) {
+  if (!device || !device.battery || device.battery.charge === null || device.battery.charge === undefined)
+    return "Battery unavailable"
+  return device.battery.charge + "%" + (device.battery.charging ? " · Charging" : "")
+}
+
+function connectivityText(device) {
+  if (!device || !device.connectivity) return ""
+  var type = String(device.connectivity.type || "")
+  var strength = Number(device.connectivity.strength)
+  var parts = []
+  if (type !== "" && type !== "Unknown") parts.push(type)
+  if (isFinite(strength) && strength >= 0) parts.push("Signal " + strength + "/4")
+  return parts.join(" · ")
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     defaultStatus: defaultStatus,
     parseStatus: parseStatus,
-    deviceSummary: deviceSummary
+    deviceSummary: deviceSummary,
+    batteryText: batteryText,
+    connectivityText: connectivityText
   }
 }

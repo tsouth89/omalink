@@ -12,6 +12,7 @@ Item {
   property var devices: []
   property string statusText: "Checking…"
   property string actionStatus: ""
+  property string actionSuccess: ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 15, 5, 300)
   readonly property string pluginDir: Qt.resolvedUrl(".").toString().replace(/^file:\/\//, "").replace(/\/$/, "")
@@ -46,7 +47,16 @@ Item {
   function ring(deviceId) {
     if (!deviceId || actionProcess.running) return
     actionStatus = "Ringing phone…"
+    actionSuccess = "Phone is ringing"
     actionProcess.command = [helperPath, "ring", String(deviceId)]
+    actionProcess.running = true
+  }
+
+  function sendClipboard(deviceId) {
+    if (!deviceId || actionProcess.running) return
+    actionStatus = "Sending clipboard…"
+    actionSuccess = "Clipboard sent"
+    actionProcess.command = [helperPath, "clipboard", String(deviceId)]
     actionProcess.running = true
   }
 
@@ -81,7 +91,7 @@ Item {
   Process {
     id: actionProcess
     onExited: function(exitCode) {
-      root.actionStatus = exitCode === 0 ? "Phone is ringing" : "Could not ring phone"
+      root.actionStatus = exitCode === 0 ? root.actionSuccess : "Action failed"
       clearActionStatus.restart()
       root.refresh()
     }

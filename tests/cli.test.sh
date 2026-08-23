@@ -16,12 +16,29 @@ if [[ ${1:-} == --device && ${3:-} == --ring ]]; then
   [[ ${2:-} == abc123 ]]
   exit
 fi
+if [[ ${1:-} == --device && ${3:-} == --send-clipboard ]]; then
+  [[ ${2:-} == abc123 ]]
+  exit
+fi
 exit 1
 EOF
 chmod +x "$temp_dir/kdeconnect-cli"
 
+cat >"$temp_dir/busctl" <<'EOF'
+#!/usr/bin/env bash
+case "${*: -1}" in
+  charge) printf '%s\n' 'i 71' ;;
+  isCharging) printf '%s\n' 'b false' ;;
+  cellularNetworkStrength) printf '%s\n' 'i 3' ;;
+  cellularNetworkType) printf '%s\n' 's "5G"' ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$temp_dir/busctl"
+
 status="$(PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" status)"
-jq -e '.installed == true and (.devices | length) == 2 and .devices[0].name == "Pixel 9"' <<<"$status" >/dev/null
+jq -e '.installed == true and (.devices | length) == 2 and .devices[0].name == "Pixel 9" and .devices[0].battery.charge == 71 and .devices[0].connectivity.type == "5G"' <<<"$status" >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" ring abc123 >/dev/null
+PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" clipboard abc123 >/dev/null
 
 echo "cli tests passed"

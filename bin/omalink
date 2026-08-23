@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: omalink <status|ring> [device-id]" >&2
+  echo "Usage: omalink <status|ring|clipboard> [device-id]" >&2
   exit 2
 }
 
@@ -13,7 +13,7 @@ status() {
     return
   fi
 
-  local raw line id name
+  local raw line id name device_path charge charging network_strength network_type
   local -a devices=()
   raw="$(kdeconnect-cli --list-available --id-name-only 2>/dev/null || true)"
 
@@ -22,7 +22,19 @@ status() {
     id="${line%% *}"
     name="${line#* }"
     [[ -n $id && $name != "$line" ]] || continue
-    devices+=("$(jq -cn --arg id "$id" --arg name "$name" '{id: $id, name: $name}')")
+    device_path="/modules/kdeconnect/devices/$id"
+    charge="$(dbus_property "$device_path/battery" org.kde.kdeconnect.device.battery charge i)"
+    charging="$(dbus_property "$device_path/battery" org.kde.kdeconnect.device.battery isCharging b)"
+    network_strength="$(dbus_property "$device_path/connectivity_report" org.kde.kdeconnect.device.connectivity_report cellularNetworkStrength i)"
+    network_type="$(dbus_property "$device_path/connectivity_report" org.kde.kdeconnect.device.connectivity_report cellularNetworkType s)"
+    devices+=("$(jq -cn \
+      --arg id "$id" \
+      --arg name "$name" \
+      --argjson charge "${charge:-null}" \
+      --argjson charging "${charging:-false}" \
+      --argjson networkStrength "${network_strength:-null}" \
+      --arg networkType "${network_type:-}" \
+      '{id: $id, name: $name, battery: {charge: $charge, charging: $charging}, connectivity: {strength: $networkStrength, type: $networkType}}')")
   done <<<"$raw"
 
   if (( ${#devices[@]} == 0 )); then
@@ -31,6 +43,18 @@ status() {
     printf '%s\n' "${devices[@]}" | jq -sc '
       {ok: true, installed: true, devices: ., statusText:
         (if length == 1 then .[0].name else "\(length) phones connected" end)}'
+  fi
+}
+
+dbus_property() {
+  local path="$1" interface="$2" property="$3" signature="$4" raw
+  raw="$(busctl --user get-property org.kde.kdeconnect "$path" "$interface" "$property" 2>/dev/null || true)"
+  [[ $raw == "$signature "* ]] || return 0
+  raw="${raw#* }"
+  if [[ $signature == s ]]; then
+    jq -r '.' <<<"$raw" 2>/dev/null || true
+  else
+    printf '%s\n' "$raw"
   fi
 }
 
@@ -44,8 +68,19 @@ ring() {
   kdeconnect-cli --device "$device_id" --ring
 }
 
+send_clipboard() {
+  local device_id="${1:-}"
+  [[ -n $device_id ]] || usage
+  command -v kdeconnect-cli >/dev/null 2>&1 || {
+    echo "KDE Connect is not installed" >&2
+    exit 1
+  }
+  kdeconnect-cli --device "$device_id" --send-clipboard
+}
+
 case "${1:-}" in
   status) status ;;
   ring) shift; ring "${1:-}" ;;
+  clipboard) shift; send_clipboard "${1:-}" ;;
   *) usage ;;
 esac
