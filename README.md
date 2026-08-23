@@ -1,19 +1,61 @@
 # OmaLink
 
-Native Android phone integration for Omarchy, powered by KDE Connect.
+Your Android phone, native to Omarchy.
 
-OmaLink adds a themed Omarchy bar panel with connected-phone status, battery
-and signal details, clipboard and ring actions, Android notifications, contact
-sync, SMS/MMS conversations, and replies.
+OmaLink is a themed Omarchy Shell plugin powered by KDE Connect. It puts the
+phone controls and information that matter directly in the bar, without a web
+account or cloud relay.
 
-## Development
+## Features
 
-Requirements for the current spike:
+- Connected phone, battery, charging state, network type, and signal strength
+- Android notifications with dismissal on the phone
+- SMS conversation list with contact names, search, and unread state
+- Read conversations, send replies, and start new messages
+- Send the desktop clipboard to the phone
+- Send text or links to the phone
+- Ring a misplaced phone
+- Native colors and typography across Omarchy themes
+- Memory-only message cache that is cleared when the message window closes
+
+## Requirements
 
 - Omarchy 4.0 or newer
-- `jq`
-- KDE Connect for live phone discovery
-- Node.js for the small JavaScript model test
+- An Android phone with [KDE Connect](https://kdeconnect.kde.org/) installed
+- `kdeconnect` and `jq` on the Omarchy computer
+
+## Install
+
+Install and enable OmaLink:
+
+```sh
+omarchy plugin add https://github.com/tsouth89/omalink.git --enable
+```
+
+If KDE Connect is not installed yet:
+
+```sh
+omarchy pkg add kdeconnect
+```
+
+Open OmaLink from the bar, choose **Open pairing**, and approve the computer in
+KDE Connect on your phone. Grant the Android permissions needed for messaging,
+contacts, notifications, clipboard access, and device status.
+
+Both devices must be able to reach one another, normally on the same local
+network.
+
+## Messaging notes
+
+OmaLink uses KDE Connect's Android messaging interface. It can read SMS/MMS
+conversation history, send SMS messages, and show that a message contains an
+attachment. Sending attachments and RCS are not currently exposed by KDE
+Connect.
+
+Message history is requested from the phone when needed. OmaLink does not add
+its own cloud service or persistent message database.
+
+## Development
 
 Run the checks:
 
@@ -23,20 +65,15 @@ node tests/model.test.js
 bash tests/cli.test.sh
 ```
 
-For local shell testing, use a throwaway clone or install from a Git remote
-with `omarchy plugin add`. Do not copy the repository into the live plugin
-directory while editing it elsewhere because Omarchy plugins may not contain
-symlinks.
+The test suite uses mock phone data and does not send messages.
 
-## Near-term scope
+## Roadmap
 
-1. Guided installation, pairing, permissions, and firewall diagnostics
-2. File sending
-3. Notification replies and event-driven refresh
-4. Conversation search and new-message composition
-
-RCS is not in scope because KDE Connect does not expose it.
+- Guided setup and permission diagnostics
+- File sending
+- Notification replies
+- Event-driven message and media updates
 
 ## License
 
-MIT
+[MIT](LICENSE)
