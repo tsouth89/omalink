@@ -1,0 +1,89 @@
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import "Model.js" as Model
+
+Item {
+  id: root
+
+  property var settings: ({})
+  property bool installed: false
+  property bool refreshing: false
+  property var devices: []
+  property string statusText: "Checking…"
+  property string actionStatus: ""
+
+  readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 15, 5, 300)
+  readonly property string pluginDir: Qt.resolvedUrl(".").toString().replace(/^file:\/\//, "").replace(/\/$/, "")
+  readonly property string helperPath: pluginDir + "/bin/omalink"
+  readonly property bool connected: devices.length > 0
+
+  function setting(name, fallback) {
+    var value = settings ? settings[name] : undefined
+    return value === undefined || value === null ? fallback : value
+  }
+
+  function intSetting(name, fallback, min, max) {
+    var value = parseInt(String(setting(name, fallback)), 10)
+    if (!isFinite(value)) value = fallback
+    return Math.max(min, Math.min(max, value))
+  }
+
+  function refresh() {
+    if (statusProcess.running) return
+    refreshing = true
+    statusProcess.command = [helperPath, "status"]
+    statusProcess.running = true
+  }
+
+  function applyStatus(raw) {
+    var status = Model.parseStatus(raw)
+    installed = status.installed === true
+    devices = status.devices || []
+    statusText = String(status.statusText || Model.deviceSummary(devices))
+  }
+
+  function ring(deviceId) {
+    if (!deviceId || actionProcess.running) return
+    actionStatus = "Ringing phone…"
+    actionProcess.command = [helperPath, "ring", String(deviceId)]
+    actionProcess.running = true
+  }
+
+  function openPairing() {
+    if (installed) Quickshell.execDetached(["kdeconnect-app"])
+  }
+
+  Timer {
+    interval: root.refreshIntervalSec * 1000
+    repeat: true
+    running: true
+    triggeredOnStart: true
+    onTriggered: root.refresh()
+  }
+
+  Timer {
+    id: clearActionStatus
+    interval: 2500
+    repeat: false
+    onTriggered: root.actionStatus = ""
+  }
+
+  Process {
+    id: statusProcess
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyStatus(text)
+    }
+    onExited: root.refreshing = false
+  }
+
+  Process {
+    id: actionProcess
+    onExited: function(exitCode) {
+      root.actionStatus = exitCode === 0 ? "Phone is ringing" : "Could not ring phone"
+      clearActionStatus.restart()
+      root.refresh()
+    }
+  }
+}

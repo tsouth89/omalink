@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omalink <status|ring> [device-id]" >&2
+  exit 2
+}
+
+status() {
+  if ! command -v kdeconnect-cli >/dev/null 2>&1; then
+    jq -cn '{ok: true, installed: false, devices: [], statusText: "KDE Connect is not installed"}'
+    return
+  fi
+
+  local raw line id name
+  local -a devices=()
+  raw="$(kdeconnect-cli --list-available --id-name-only 2>/dev/null || true)"
+
+  while IFS= read -r line; do
+    [[ -n $line ]] || continue
+    id="${line%% *}"
+    name="${line#* }"
+    [[ -n $id && $name != "$line" ]] || continue
+    devices+=("$(jq -cn --arg id "$id" --arg name "$name" '{id: $id, name: $name}')")
+  done <<<"$raw"
+
+  if (( ${#devices[@]} == 0 )); then
+    jq -cn '{ok: true, installed: true, devices: [], statusText: "No phone connected"}'
+  else
+    printf '%s\n' "${devices[@]}" | jq -sc '
+      {ok: true, installed: true, devices: ., statusText:
+        (if length == 1 then .[0].name else "\(length) phones connected" end)}'
+  fi
+}
+
+ring() {
+  local device_id="${1:-}"
+  [[ -n $device_id ]] || usage
+  command -v kdeconnect-cli >/dev/null 2>&1 || {
+    echo "KDE Connect is not installed" >&2
+    exit 1
+  }
+  kdeconnect-cli --device "$device_id" --ring
+}
+
+case "${1:-}" in
+  status) status ;;
+  ring) shift; ring "${1:-}" ;;
+  *) usage ;;
+esac
