@@ -9,7 +9,6 @@ Panel {
   id: root
   moduleName: "omalink.phone"
   ipcTarget: "omalink.phone"
-  manageIpc: false
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color dim: Qt.darker(foreground, 1.55)
