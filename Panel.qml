@@ -165,15 +165,6 @@ Panel {
             }
 
             Button {
-              iconText: "󰏲"
-              tooltipText: "Ring phone"
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-              bordered: true
-              onClicked: phone.ring(modelData.id)
-            }
-
-            Button {
               iconText: "󰌷"
               tooltipText: "Send text or link"
               foreground: root.foreground
@@ -185,6 +176,15 @@ Panel {
                 shareField.text = ""
                 Qt.callLater(function() { shareField.forceActiveFocus() })
               }
+            }
+
+            Button {
+              iconText: "󰏲"
+              tooltipText: "Ring phone"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              bordered: true
+              onClicked: phone.ring(modelData.id)
             }
           }
         }
