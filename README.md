@@ -4,8 +4,7 @@ Native Android phone integration for Omarchy, powered by KDE Connect.
 
 OmaLink adds a themed Omarchy bar panel with connected-phone status, battery
 and signal details, clipboard and ring actions, Android notifications, contact
-sync, SMS/MMS conversations, and replies. Message notification previews are
-hidden by default and can be enabled in the widget settings.
+sync, SMS/MMS conversations, and replies.
 
 ## Development
 

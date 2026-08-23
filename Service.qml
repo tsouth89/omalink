@@ -16,7 +16,6 @@ Item {
   property string actionSuccess: ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 15, 5, 300)
-  readonly property bool hideMessagePreviews: boolSetting("hideMessagePreviews", true)
   readonly property string pluginDir: Qt.resolvedUrl(".").toString().replace(/^file:\/\//, "").replace(/\/$/, "")
   readonly property string helperPath: pluginDir + "/bin/omalink"
   readonly property bool connected: devices.length > 0
@@ -30,12 +29,6 @@ Item {
     var value = parseInt(String(setting(name, fallback)), 10)
     if (!isFinite(value)) value = fallback
     return Math.max(min, Math.min(max, value))
-  }
-
-  function boolSetting(name, fallback) {
-    var value = setting(name, fallback)
-    if (value === true || value === false) return value
-    return String(value).toLowerCase() !== "false"
   }
 
   function refresh() {

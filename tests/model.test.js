@@ -25,8 +25,5 @@ assert.equal(model.conversationTitle({ addresses: ["+15551234567"] }), "+1555123
 assert.equal(model.conversationTitle({ addresses: ["+15551234567"], names: ["Alex"] }), "Alex")
 assert.equal(model.conversationTitle({ addresses: ["Alex", "Sam"] }), "Alex +1")
 assert.equal(model.relativeTime(1000, 61000), "1m")
-assert.equal(model.notificationTitle({ title: "Private sender", isConversation: true }, true), "Message hidden")
-assert.equal(model.notificationText({ text: "Private text", isConversation: true }, true), "")
-assert.equal(model.notificationTitle({ title: "Battery low", isConversation: false }, true), "Battery low")
 
 console.log("model tests passed")

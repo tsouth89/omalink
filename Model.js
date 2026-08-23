@@ -113,16 +113,6 @@ function relativeTime(timestamp, now) {
   return (date.getMonth() + 1) + "/" + date.getDate()
 }
 
-function notificationTitle(notification, hideMessagePreviews) {
-  if (hideMessagePreviews && notification && notification.isConversation) return "Message hidden"
-  return notification ? String(notification.title || "") : ""
-}
-
-function notificationText(notification, hideMessagePreviews) {
-  if (hideMessagePreviews && notification && notification.isConversation) return ""
-  return notification ? String(notification.text || "") : ""
-}
-
 if (typeof module !== "undefined") {
   module.exports = {
     defaultStatus: defaultStatus,
@@ -135,8 +125,6 @@ if (typeof module !== "undefined") {
     appendSentMessage: appendSentMessage,
     updateConversationAfterSend: updateConversationAfterSend,
     conversationTitle: conversationTitle,
-    relativeTime: relativeTime,
-    notificationTitle: notificationTitle,
-    notificationText: notificationText
+    relativeTime: relativeTime
   }
 }
