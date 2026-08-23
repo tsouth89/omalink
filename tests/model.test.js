@@ -59,6 +59,24 @@ const freshMerge = model.mergePendingConversation([
   { threadId: 9, addresses: ["+15550000001"], preview: "New", timestamp: 2000 }
 ], smsUpdated[0])
 assert.equal(freshMerge.resolved, true)
+const pendingOutgoing = { body: "On my way", timestamp: 2000 }
+const pendingMessageMerge = model.mergePendingOutgoing([
+  { body: "Earlier", timestamp: 1000, incoming: true }
+], pendingOutgoing)
+assert.equal(pendingMessageMerge.resolved, false)
+assert.equal(pendingMessageMerge.messages.length, 2)
+assert.equal(pendingMessageMerge.messages[1].body, "On my way")
+assert.equal(pendingMessageMerge.messages[1].pending, true)
+const confirmedMessageMerge = model.mergePendingOutgoing([
+  { body: "On my way", timestamp: 2500, incoming: false }
+], pendingOutgoing)
+assert.equal(confirmedMessageMerge.resolved, true)
+assert.equal(confirmedMessageMerge.messages.length, 1)
+const oldDuplicateMerge = model.mergePendingOutgoing([
+  { body: "On my way", timestamp: 200000, incoming: false }
+], pendingOutgoing)
+assert.equal(oldDuplicateMerge.resolved, false)
+assert.equal(oldDuplicateMerge.messages.length, 2)
 assert.equal(model.conversationTitle({ addresses: ["+15551234567"] }), "+15551234567")
 assert.equal(model.conversationTitle({ addresses: ["+15551234567"], names: ["Alex"] }), "Alex")
 assert.equal(model.conversationTitle({ addresses: ["Alex", "Sam"] }), "Alex +1")

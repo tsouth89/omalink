@@ -23,6 +23,7 @@ Item {
   property string pendingNewName: ""
   property string pendingNewBody: ""
   property var pendingConversation: null
+  property var pendingOutgoing: null
   property int pendingSyncAttempts: 0
   property var messages: []
   property bool sending: false
@@ -65,6 +66,7 @@ Item {
     pendingNewName = ""
     pendingNewBody = ""
     pendingConversation = null
+    pendingOutgoing = null
     pendingSyncAttempts = 0
     refreshAfterNewMessage.stop()
     messages = []
@@ -82,8 +84,12 @@ Item {
       openThread(selectedConversation)
       return
     }
+    refreshConversations()
+  }
+
+  function refreshConversations() {
     if (deviceId === "" || conversationProcess.running) return
-    loading = true
+    if (!selectedConversation) loading = true
     error = ""
     conversationProcess.command = [helperPath, "conversations", deviceId]
     conversationProcess.running = true
@@ -97,8 +103,10 @@ Item {
 
   function openThread(conversation) {
     if (!conversation || threadProcess.running) return
+    var changingThread = !selectedConversation
+      || String(selectedConversation.threadId) !== String(conversation.threadId)
     selectedConversation = conversation
-    messages = []
+    if (changingThread) messages = []
     loading = true
     error = ""
     threadProcess.command = [helperPath, "messages", deviceId, String(conversation.threadId)]
@@ -160,7 +168,9 @@ Item {
     interval: 30000
     repeat: true
     running: root.opened
-    onTriggered: root.refresh()
+    onTriggered: {
+      if (!root.selectedConversation && !root.composing) root.refreshConversations()
+    }
   }
 
   Process {
@@ -223,6 +233,11 @@ Item {
         root.pendingNewBody,
         sentAt)
       root.pendingConversation = root.conversations[0]
+      root.pendingOutgoing = {
+        number: root.pendingNewNumber,
+        body: root.pendingNewBody,
+        timestamp: sentAt
+      }
       root.pendingSyncAttempts = 0
       root.composing = false
       root.recipientQuery = ""
@@ -241,7 +256,7 @@ Item {
     repeat: true
     onTriggered: {
       root.pendingSyncAttempts++
-      root.refresh()
+      root.refreshConversations()
       if (!root.pendingConversation || root.pendingSyncAttempts >= 6) stop()
     }
   }
@@ -279,7 +294,17 @@ Item {
     id: threadProcess
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.messages = Model.parseMessages(text)
+      onStreamFinished: {
+        var fetched = Model.parseMessages(text)
+        if (root.pendingOutgoing
+            && Model.conversationMatchesNumber(root.selectedConversation, root.pendingOutgoing.number)) {
+          var merged = Model.mergePendingOutgoing(fetched, root.pendingOutgoing)
+          root.messages = merged.messages
+          if (merged.resolved) root.pendingOutgoing = null
+        } else {
+          root.messages = fetched
+        }
+      }
     }
     stderr: StdioCollector {
       waitForEnd: true

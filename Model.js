@@ -194,6 +194,30 @@ function mergePendingConversation(conversations, pending) {
   return { conversations: [pending].concat(current), resolved: false }
 }
 
+function mergePendingOutgoing(messages, pending) {
+  var current = Array.isArray(messages) ? messages : []
+  if (!pending) return { messages: current, resolved: true }
+
+  for (var i = 0; i < current.length; i++) {
+    var message = current[i]
+    if (message && message.incoming === false
+        && String(message.body || "") === String(pending.body || "")
+        && Math.abs(Number(message.timestamp) - Number(pending.timestamp)) <= 120000)
+      return { messages: current, resolved: true }
+  }
+
+  var optimistic = {
+    body: String(pending.body || ""),
+    timestamp: Number(pending.timestamp),
+    incoming: false,
+    attachmentCount: 0,
+    pending: true
+  }
+  var merged = current.concat([optimistic])
+  merged.sort(function(left, right) { return Number(left.timestamp) - Number(right.timestamp) })
+  return { messages: merged, resolved: false }
+}
+
 function conversationTitle(conversation) {
   if (!conversation) return "Unknown sender"
   var values = conversation.names && conversation.names.length ? conversation.names : conversation.addresses
@@ -238,6 +262,7 @@ if (typeof module !== "undefined") {
     conversationMatchesNumber: conversationMatchesNumber,
     upsertConversationAfterSms: upsertConversationAfterSms,
     mergePendingConversation: mergePendingConversation,
+    mergePendingOutgoing: mergePendingOutgoing,
     conversationTitle: conversationTitle,
     relativeTime: relativeTime
   }
