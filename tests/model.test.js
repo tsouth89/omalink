@@ -41,6 +41,24 @@ assert.equal(updatedConversations[0].threadId, 1)
 assert.equal(updatedConversations[0].preview, "Sent")
 assert.equal(updatedConversations[0].incoming, false)
 assert.equal(updatedConversations[0].unread, false)
+const smsUpdated = model.upsertConversationAfterSms([
+  { threadId: 9, addresses: ["(555) 000-0001"], names: ["Becca"], preview: "Old", timestamp: 1000 }
+], "+1 555 000 0001", "Becca", "New", 2000)
+assert.equal(smsUpdated[0].threadId, 9)
+assert.equal(smsUpdated[0].preview, "New")
+assert.equal(smsUpdated[0].pendingSync, true)
+const newSms = model.upsertConversationAfterSms([], "+15550000002", "New person", "Hello", 2000)[0]
+assert.equal(newSms.pending, true)
+assert.equal(newSms.threadId, null)
+const staleMerge = model.mergePendingConversation([
+  { threadId: 9, addresses: ["+15550000001"], preview: "Old", timestamp: 1000 }
+], smsUpdated[0])
+assert.equal(staleMerge.resolved, false)
+assert.equal(staleMerge.conversations[0].preview, "New")
+const freshMerge = model.mergePendingConversation([
+  { threadId: 9, addresses: ["+15550000001"], preview: "New", timestamp: 2000 }
+], smsUpdated[0])
+assert.equal(freshMerge.resolved, true)
 assert.equal(model.conversationTitle({ addresses: ["+15551234567"] }), "+15551234567")
 assert.equal(model.conversationTitle({ addresses: ["+15551234567"], names: ["Alex"] }), "Alex")
 assert.equal(model.conversationTitle({ addresses: ["Alex", "Sam"] }), "Alex +1")

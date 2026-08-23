@@ -126,6 +126,74 @@ function updateConversationAfterSend(conversations, threadId, body, timestamp) {
   return updated ? [updated].concat(remaining) : conversations.slice()
 }
 
+function phoneKey(value) {
+  var digits = String(value || "").replace(/[^0-9]/g, "")
+  return digits.length > 10 ? digits.slice(-10) : digits
+}
+
+function conversationMatchesNumber(conversation, number) {
+  if (!conversation || !Array.isArray(conversation.addresses)) return false
+  var key = phoneKey(number)
+  if (key === "") return false
+  for (var i = 0; i < conversation.addresses.length; i++) {
+    if (phoneKey(conversation.addresses[i]) === key) return true
+  }
+  return false
+}
+
+function upsertConversationAfterSms(conversations, number, name, body, timestamp) {
+  var current = Array.isArray(conversations) ? conversations : []
+  var updated = null
+  var remaining = []
+  for (var i = 0; i < current.length; i++) {
+    var conversation = current[i]
+    if (!updated && conversationMatchesNumber(conversation, number)) {
+      updated = {}
+      for (var key in conversation) updated[key] = conversation[key]
+    } else {
+      remaining.push(conversation)
+    }
+  }
+  if (!updated) {
+    updated = {
+      threadId: null,
+      addresses: [String(number || "")],
+      names: [String(name || number || "")],
+      attachmentCount: 0,
+      pending: true
+    }
+  }
+  updated.preview = String(body || "")
+  updated.timestamp = Number(timestamp)
+  updated.incoming = false
+  updated.unread = false
+  updated.pendingSync = true
+  return [updated].concat(remaining)
+}
+
+function mergePendingConversation(conversations, pending) {
+  var current = Array.isArray(conversations) ? conversations : []
+  if (!pending || !pending.addresses || pending.addresses.length === 0)
+    return { conversations: current, resolved: true }
+
+  var matchIndex = -1
+  for (var i = 0; i < current.length; i++) {
+    if (conversationMatchesNumber(current[i], pending.addresses[0])) {
+      matchIndex = i
+      break
+    }
+  }
+  if (matchIndex >= 0) {
+    var match = current[matchIndex]
+    if (Number(match.timestamp) >= Number(pending.timestamp) || match.preview === pending.preview)
+      return { conversations: current, resolved: true }
+    var withoutStale = current.slice()
+    withoutStale.splice(matchIndex, 1)
+    return { conversations: [pending].concat(withoutStale), resolved: false }
+  }
+  return { conversations: [pending].concat(current), resolved: false }
+}
+
 function conversationTitle(conversation) {
   if (!conversation) return "Unknown sender"
   var values = conversation.names && conversation.names.length ? conversation.names : conversation.addresses
@@ -166,6 +234,10 @@ if (typeof module !== "undefined") {
     parseMessages: parseMessages,
     appendSentMessage: appendSentMessage,
     updateConversationAfterSend: updateConversationAfterSend,
+    phoneKey: phoneKey,
+    conversationMatchesNumber: conversationMatchesNumber,
+    upsertConversationAfterSms: upsertConversationAfterSms,
+    mergePendingConversation: mergePendingConversation,
     conversationTitle: conversationTitle,
     relativeTime: relativeTime
   }

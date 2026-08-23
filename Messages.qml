@@ -19,6 +19,11 @@ Item {
   property bool composing: false
   property string recipientQuery: ""
   property string recipientNumber: ""
+  property string pendingNewNumber: ""
+  property string pendingNewName: ""
+  property string pendingNewBody: ""
+  property var pendingConversation: null
+  property int pendingSyncAttempts: 0
   property var messages: []
   property bool sending: false
   property string pendingReply: ""
@@ -56,6 +61,12 @@ Item {
     composing = false
     recipientQuery = ""
     recipientNumber = ""
+    pendingNewNumber = ""
+    pendingNewName = ""
+    pendingNewBody = ""
+    pendingConversation = null
+    pendingSyncAttempts = 0
+    refreshAfterNewMessage.stop()
     messages = []
     searchText = ""
     if (!sending) {
@@ -126,6 +137,9 @@ Item {
     var message = composeMessage.text.trim()
     if (destination === "" || message === "" || sending) return
     sending = true
+    pendingNewNumber = destination
+    pendingNewName = recipientNumber !== "" ? recipientQuery : destination
+    pendingNewBody = message
     error = ""
     newMessageProcess.command = [helperPath, "sms", deviceId, destination, message]
     newMessageProcess.running = true
@@ -153,7 +167,20 @@ Item {
     id: conversationProcess
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.conversations = Model.parseConversations(text)
+      onStreamFinished: {
+        var fetched = Model.parseConversations(text)
+        if (root.pendingConversation) {
+          var merged = Model.mergePendingConversation(fetched, root.pendingConversation)
+          root.conversations = merged.conversations
+          if (merged.resolved) {
+            root.pendingConversation = null
+            root.pendingSyncAttempts = 0
+            refreshAfterNewMessage.stop()
+          }
+        } else {
+          root.conversations = fetched
+        }
+      }
     }
     stderr: StdioCollector {
       waitForEnd: true
@@ -182,22 +209,41 @@ Item {
     onExited: function(exitCode) {
       root.sending = false
       if (exitCode !== 0) {
+        root.pendingNewNumber = ""
+        root.pendingNewName = ""
+        root.pendingNewBody = ""
         root.error = "Could not send message"
         return
       }
+      var sentAt = Date.now()
+      root.conversations = Model.upsertConversationAfterSms(
+        root.conversations,
+        root.pendingNewNumber,
+        root.pendingNewName,
+        root.pendingNewBody,
+        sentAt)
+      root.pendingConversation = root.conversations[0]
+      root.pendingSyncAttempts = 0
       root.composing = false
       root.recipientQuery = ""
       root.recipientNumber = ""
+      root.pendingNewNumber = ""
+      root.pendingNewName = ""
+      root.pendingNewBody = ""
       composeMessage.text = ""
-      refreshAfterNewMessage.restart()
+      refreshAfterNewMessage.start()
     }
   }
 
   Timer {
     id: refreshAfterNewMessage
-    interval: 1200
-    repeat: false
-    onTriggered: root.refresh()
+    interval: 1800
+    repeat: true
+    onTriggered: {
+      root.pendingSyncAttempts++
+      root.refresh()
+      if (!root.pendingConversation || root.pendingSyncAttempts >= 6) stop()
+    }
   }
 
   Process {
@@ -479,7 +525,14 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: root.openThread(modelData)
+                onClicked: {
+                  if (modelData.pending && (modelData.threadId === null || modelData.threadId === undefined)) {
+                    root.error = "Waiting for the phone to create this thread…"
+                    root.refresh()
+                  } else {
+                    root.openThread(modelData)
+                  }
+                }
               }
             }
           }
