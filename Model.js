@@ -69,6 +69,20 @@ function filterConversations(conversations, query) {
   })
 }
 
+function parseContacts(raw) {
+  return parseConversations(raw)
+}
+
+function filterContacts(contacts, query) {
+  if (!Array.isArray(contacts)) return []
+  var needle = String(query || "").trim().toLowerCase()
+  if (needle === "") return []
+  return contacts.filter(function(contact) {
+    return (String(contact.name || "") + "\n" + String(contact.number || ""))
+      .toLowerCase().indexOf(needle) !== -1
+  })
+}
+
 function parseConversations(raw) {
   try {
     var parsed = JSON.parse(String(raw || "[]"))
@@ -146,6 +160,8 @@ if (typeof module !== "undefined") {
     signalStrength: signalStrength,
     visibleNotifications: visibleNotifications,
     filterConversations: filterConversations,
+    parseContacts: parseContacts,
+    filterContacts: filterContacts,
     parseConversations: parseConversations,
     parseMessages: parseMessages,
     appendSentMessage: appendSentMessage,

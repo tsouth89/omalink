@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: omalink <status|ring|clipboard|share|dismiss|conversations|messages|reply> [arguments]" >&2
+  echo "Usage: omalink <status|ring|clipboard|share|dismiss|contacts|conversations|messages|reply|sms> [arguments]" >&2
   exit 2
 }
 
@@ -145,42 +145,59 @@ dismiss_notification() {
     org.kde.kdeconnect.device.notifications.notification dismiss >/dev/null
 }
 
-conversations() {
-  local device_id="${1:-}" device_path contact_dir contacts raw
-  [[ $device_id =~ ^[A-Za-z0-9]+$ ]] || usage
+contact_records_json() {
+  local device_id="$1" device_path contact_dir
   device_path="/modules/kdeconnect/devices/$device_id"
   contact_dir="${XDG_DATA_HOME:-$HOME/.local/share}/kpeoplevcard/kdeconnect-$device_id"
 
   busctl --user call org.kde.kdeconnect "$device_path/contacts" \
     org.kde.kdeconnect.device.contacts synchronizeRemoteWithLocal >/dev/null 2>&1 || true
 
-  contacts='{}'
-  if compgen -G "$contact_dir/*.vcf" >/dev/null; then
-    contacts="$(awk '
-      function value() { return substr($0, index($0, ":") + 1) }
-      /^BEGIN:VCARD/ { name = ""; phone_count = 0 }
-      /^FN[;:]/ { name = value(); gsub(/\\,/, ",", name); gsub(/\\;/, ";", name) }
-      /^TEL[;:]/ { phones[++phone_count] = value() }
-      /^END:VCARD/ {
-        gsub(/[\t\r\n]/, " ", name)
-        for (i = 1; i <= phone_count; i++) if (name != "") print phones[i] "\t" name
-        delete phones
-      }
-    ' "$contact_dir"/*.vcf | jq -Rn '
-      reduce inputs as $line ({};
-        ($line | split("\t")) as $parts
-        | ($parts[0] | gsub("[^0-9]"; "") | if length > 10 then .[-10:] else . end) as $number
-        | if $number != "" and ($parts | length) > 1 then .[$number] = $parts[1] else . end)
-    ')"
+  if ! compgen -G "$contact_dir/*.vcf" >/dev/null; then
+    printf '%s\n' '[]'
+    return
   fi
+
+  awk '
+    function value() { return substr($0, index($0, ":") + 1) }
+    /^BEGIN:VCARD/ { name = ""; phone_count = 0 }
+    /^FN[;:]/ { name = value(); gsub(/\\,/, ",", name); gsub(/\\;/, ";", name) }
+    /^TEL[;:]/ { phones[++phone_count] = value() }
+    /^END:VCARD/ {
+      gsub(/[\t\r\n]/, " ", name)
+      for (i = 1; i <= phone_count; i++) if (name != "") print phones[i] "\t" name
+      delete phones
+    }
+  ' "$contact_dir"/*.vcf | jq -Rsc '
+    split("\n")
+    | map(select(length > 0) | split("\t") | {number: .[0], name: .[1]})
+    | unique_by(.number)
+    | sort_by(.name | ascii_downcase)
+  '
+}
+
+contacts() {
+  local device_id="${1:-}"
+  [[ $device_id =~ ^[A-Za-z0-9]+$ ]] || usage
+  contact_records_json "$device_id"
+}
+
+conversations() {
+  local device_id="${1:-}" device_path contacts raw
+  [[ $device_id =~ ^[A-Za-z0-9]+$ ]] || usage
+  device_path="/modules/kdeconnect/devices/$device_id"
+  contacts="$(contact_records_json "$device_id")"
 
   raw="$(busctl --user --json=short call org.kde.kdeconnect "$device_path" \
     org.kde.kdeconnect.device.conversations activeConversations)"
   jq -c --argjson contacts "$contacts" '
     def number_key:
       gsub("[^0-9]"; "") | if length > 10 then .[-10:] else . end;
+    ($contacts | reduce .[] as $contact ({};
+      .[($contact.number | number_key)] = $contact.name)) as $contactNames
+    |
     def display_name:
-      . as $address | ($address | number_key) as $key | $contacts[$key] // $address;
+      . as $address | ($address | number_key) as $key | $contactNames[$key] // $address;
     [.data[0][]? | .data as $message | {
       threadId: $message[6],
       preview: $message[1],
@@ -248,14 +265,23 @@ reply() {
     xsav "$thread_id" "$message" 0 >/dev/null
 }
 
+send_sms() {
+  local device_id="${1:-}" destination="${2:-}" message="${3:-}" digits
+  digits="${destination//[^0-9]/}"
+  [[ $device_id =~ ^[A-Za-z0-9]+$ && $destination =~ ^[+0-9().[:space:]-]+$ && ${#digits} -ge 3 && -n $message ]] || usage
+  kdeconnect-cli --device "$device_id" --send-sms "$message" --destination "$destination"
+}
+
 case "${1:-}" in
   status) status ;;
   ring) shift; ring "${1:-}" ;;
   clipboard) shift; send_clipboard "${1:-}" ;;
   share) shift; share_text "${1:-}" "${2:-}" ;;
   dismiss) shift; dismiss_notification "${1:-}" "${2:-}" ;;
+  contacts) shift; contacts "${1:-}" ;;
   conversations) shift; conversations "${1:-}" ;;
   messages) shift; messages "${1:-}" "${2:-}" ;;
   reply) shift; reply "${1:-}" "${2:-}" "${3:-}" ;;
+  sms) shift; send_sms "${1:-}" "${2:-}" "${3:-}" ;;
   *) usage ;;
 esac

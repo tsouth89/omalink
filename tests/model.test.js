@@ -24,6 +24,11 @@ assert.equal(model.filterConversations(searchableConversations, "rivera").length
 assert.equal(model.filterConversations(searchableConversations, "0002")[0].names[0], "Sam")
 assert.equal(model.filterConversations(searchableConversations, "project").length, 1)
 assert.equal(model.filterConversations(searchableConversations, "missing").length, 0)
+const contacts = [{ name: "Alex Rivera", number: "+15550000001" }, { name: "Sam", number: "+15550000002" }]
+assert.equal(model.parseContacts(JSON.stringify(contacts)).length, 2)
+assert.equal(model.filterContacts(contacts, "rivera")[0].number, "+15550000001")
+assert.equal(model.filterContacts(contacts, "0002")[0].name, "Sam")
+assert.equal(model.filterContacts(contacts, "").length, 0)
 assert.deepEqual(model.parseConversations("not json"), [])
 assert.equal(model.parseConversations('[{"threadId":1}]').length, 1)
 assert.equal(model.parseMessages('[{"body":"Hello"}]')[0].body, "Hello")

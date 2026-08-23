@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls as Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
@@ -14,7 +14,11 @@ Item {
   property bool opened: false
   property string deviceId: ""
   property var conversations: []
+  property var contacts: []
   property var selectedConversation: null
+  property bool composing: false
+  property string recipientQuery: ""
+  property string recipientNumber: ""
   property var messages: []
   property bool sending: false
   property string pendingReply: ""
@@ -25,6 +29,7 @@ Item {
   property double nowMs: Date.now()
 
   readonly property var filteredConversations: Model.filterConversations(conversations, searchText)
+  readonly property var filteredContacts: Model.filterContacts(contacts, recipientQuery).slice(0, 8)
 
   readonly property string pluginDir: Qt.resolvedUrl(".").toString().replace(/^file:\/\//, "").replace(/\/$/, "")
   readonly property string helperPath: pluginDir + "/bin/omalink"
@@ -38,6 +43,7 @@ Item {
     deviceId = String(payload.deviceId || "")
     searchText = ""
     opened = true
+    refreshContacts()
     refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -45,7 +51,11 @@ Item {
   function close() {
     opened = false
     conversations = []
+    contacts = []
     selectedConversation = null
+    composing = false
+    recipientQuery = ""
+    recipientNumber = ""
     messages = []
     searchText = ""
     if (!sending) {
@@ -56,6 +66,7 @@ Item {
   }
 
   function refresh() {
+    if (composing) return
     if (selectedConversation) {
       openThread(selectedConversation)
       return
@@ -65,6 +76,12 @@ Item {
     error = ""
     conversationProcess.command = [helperPath, "conversations", deviceId]
     conversationProcess.running = true
+  }
+
+  function refreshContacts() {
+    if (deviceId === "" || contactProcess.running) return
+    contactProcess.command = [helperPath, "contacts", deviceId]
+    contactProcess.running = true
   }
 
   function openThread(conversation) {
@@ -79,10 +96,39 @@ Item {
 
   function showConversations() {
     selectedConversation = null
+    composing = false
+    recipientQuery = ""
+    recipientNumber = ""
     messages = []
     replyField.text = ""
     error = ""
     Qt.callLater(root.refresh)
+  }
+
+  function startCompose() {
+    selectedConversation = null
+    composing = true
+    recipientQuery = ""
+    recipientNumber = ""
+    error = ""
+    composeMessage.text = ""
+    Qt.callLater(function() { recipientField.forceActiveFocus() })
+  }
+
+  function chooseContact(contact) {
+    recipientQuery = String(contact.name || contact.number || "")
+    recipientNumber = String(contact.number || "")
+    Qt.callLater(function() { composeMessage.forceActiveFocus() })
+  }
+
+  function sendNewMessage() {
+    var destination = recipientNumber !== "" ? recipientNumber : recipientField.text.trim()
+    var message = composeMessage.text.trim()
+    if (destination === "" || message === "" || sending) return
+    sending = true
+    error = ""
+    newMessageProcess.command = [helperPath, "sms", deviceId, destination, message]
+    newMessageProcess.running = true
   }
 
   function sendReply() {
@@ -117,6 +163,41 @@ Item {
       root.loading = false
       if (exitCode !== 0) root.error = "Could not load messages"
     }
+  }
+
+  Process {
+    id: contactProcess
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.contacts = Model.parseContacts(text)
+    }
+  }
+
+  Process {
+    id: newMessageProcess
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: if (String(text || "").trim() !== "") root.error = "Could not send message"
+    }
+    onExited: function(exitCode) {
+      root.sending = false
+      if (exitCode !== 0) {
+        root.error = "Could not send message"
+        return
+      }
+      root.composing = false
+      root.recipientQuery = ""
+      root.recipientNumber = ""
+      composeMessage.text = ""
+      refreshAfterNewMessage.restart()
+    }
+  }
+
+  Timer {
+    id: refreshAfterNewMessage
+    interval: 1200
+    repeat: false
+    onTriggered: root.refresh()
   }
 
   Process {
@@ -184,26 +265,26 @@ Item {
       anchors.fill: parent
       focus: true
       Keys.onEscapePressed: {
-        if (root.selectedConversation) root.showConversations()
+        if (root.selectedConversation || root.composing) root.showConversations()
         else root.close()
       }
       Keys.onPressed: function(event) {
-        if (!root.selectedConversation && (event.key === Qt.Key_Slash
+        if (!root.selectedConversation && !root.composing && (event.key === Qt.Key_Slash
             || (event.key === Qt.Key_F && (event.modifiers & Qt.ControlModifier)))) {
           searchField.forceActiveFocus()
           event.accepted = true
-        } else if (!root.selectedConversation && event.key === Qt.Key_PageDown) {
+        } else if (!root.selectedConversation && !root.composing && event.key === Qt.Key_PageDown) {
           conversationList.contentY = Math.min(
             Math.max(0, conversationList.contentHeight - conversationList.height),
             conversationList.contentY + conversationList.height * 0.85)
           event.accepted = true
-        } else if (!root.selectedConversation && event.key === Qt.Key_PageUp) {
+        } else if (!root.selectedConversation && !root.composing && event.key === Qt.Key_PageUp) {
           conversationList.contentY = Math.max(0, conversationList.contentY - conversationList.height * 0.85)
           event.accepted = true
-        } else if (!root.selectedConversation && event.key === Qt.Key_Home) {
+        } else if (!root.selectedConversation && !root.composing && event.key === Qt.Key_Home) {
           conversationList.positionViewAtBeginning()
           event.accepted = true
-        } else if (!root.selectedConversation && event.key === Qt.Key_End) {
+        } else if (!root.selectedConversation && !root.composing && event.key === Qt.Key_End) {
           conversationList.positionViewAtEnd()
           event.accepted = true
         } else if (event.key === Qt.Key_R) {
@@ -230,7 +311,7 @@ Item {
             Layout.fillWidth: true
 
             PanelActionButton {
-              visible: root.selectedConversation !== null
+              visible: root.selectedConversation !== null || root.composing
               iconText: "󰁍"
               tooltipText: "Back to conversations"
               foreground: root.foreground
@@ -240,14 +321,26 @@ Item {
 
             Text {
               Layout.fillWidth: true
-              text: root.selectedConversation ? Model.conversationTitle(root.selectedConversation) : "Messages"
+              text: root.selectedConversation
+                ? Model.conversationTitle(root.selectedConversation)
+                : (root.composing ? "New message" : "Messages")
               color: root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.display
               font.bold: true
             }
 
+            Button {
+              visible: root.selectedConversation === null && !root.composing
+              text: "New message"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              bordered: true
+              onClicked: root.startCompose()
+            }
+
             PanelActionButton {
+              visible: !root.composing
               iconText: "󰑐"
               tooltipText: "Refresh"
               foreground: root.foreground
@@ -265,7 +358,7 @@ Item {
           }
 
           Text {
-            visible: root.loading || root.error !== "" || (root.selectedConversation ? root.messages.length === 0 : root.filteredConversations.length === 0)
+            visible: root.error !== "" || (!root.composing && (root.loading || (root.selectedConversation ? root.messages.length === 0 : root.filteredConversations.length === 0)))
             Layout.fillWidth: true
             text: root.error !== "" ? root.error : (root.loading ? "Loading…" : (root.selectedConversation ? "No messages" : (root.searchText === "" ? "No conversations" : "No matches")))
             color: root.dim
@@ -275,7 +368,7 @@ Item {
           }
 
           RowLayout {
-            visible: root.selectedConversation === null
+            visible: root.selectedConversation === null && !root.composing
             Layout.fillWidth: true
             spacing: Style.space(8)
 
@@ -308,7 +401,7 @@ Item {
 
           ListView {
             id: conversationList
-            visible: root.selectedConversation === null
+            visible: root.selectedConversation === null && !root.composing
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
@@ -317,7 +410,7 @@ Item {
             interactive: contentHeight > height
             model: root.filteredConversations
 
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            Controls.ScrollBar.vertical: Controls.ScrollBar { policy: Controls.ScrollBar.AsNeeded }
 
             delegate: Rectangle {
               required property var modelData
@@ -449,6 +542,143 @@ Item {
             }
           }
 
+          ColumnLayout {
+            visible: root.composing
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: Style.space(10)
+
+            Text {
+              text: "TO"
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              font.letterSpacing: 1.2
+            }
+
+            TextField {
+              id: recipientField
+              Layout.fillWidth: true
+              enabled: !root.sending
+              placeholderText: "Contact name or phone number"
+              text: root.recipientQuery
+              foreground: root.foreground
+              font.family: root.fontFamily
+              onTextEdited: {
+                root.recipientQuery = text
+                root.recipientNumber = ""
+              }
+            }
+
+            ListView {
+              visible: root.filteredContacts.length > 0 && root.recipientNumber === ""
+              Layout.fillWidth: true
+              Layout.preferredHeight: Math.min(contentHeight, Style.space(220))
+              clip: true
+              spacing: Style.space(3)
+              model: root.filteredContacts
+
+              Controls.ScrollBar.vertical: Controls.ScrollBar { policy: Controls.ScrollBar.AsNeeded }
+
+              delegate: Rectangle {
+                required property var modelData
+                width: ListView.view.width
+                height: contactRow.implicitHeight + Style.space(14)
+                color: contactMouse.containsMouse
+                  ? Style.hoverFillFor(root.foreground, Color.accent)
+                  : "transparent"
+                radius: Style.cornerRadius
+
+                RowLayout {
+                  id: contactRow
+                  anchors.fill: parent
+                  anchors.margins: Style.space(7)
+                  spacing: Style.space(8)
+
+                  Text {
+                    Layout.fillWidth: true
+                    text: modelData.name
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                    elide: Text.ElideRight
+                  }
+
+                  Text {
+                    text: modelData.number
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+
+                MouseArea {
+                  id: contactMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.chooseContact(modelData)
+                }
+              }
+            }
+
+            Text {
+              text: "MESSAGE"
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              font.letterSpacing: 1.2
+            }
+
+            Controls.TextArea {
+              id: composeMessage
+              Layout.fillWidth: true
+              Layout.fillHeight: true
+              enabled: !root.sending
+              placeholderText: root.sending ? "Sending…" : "Write a message"
+              color: root.foreground
+              placeholderTextColor: root.dim
+              selectionColor: Color.menu.selectedBackground
+              selectedTextColor: Color.menu.selectedText
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              wrapMode: TextEdit.Wrap
+              padding: Style.space(10)
+              background: BorderSurface {
+                color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
+                borderSpec: Border.flat(Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.16), 1)
+                radius: Style.cornerRadius
+              }
+            }
+
+            RowLayout {
+              Layout.alignment: Qt.AlignRight
+              spacing: Style.space(8)
+
+              Button {
+                text: "Cancel"
+                enabled: !root.sending
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                onClicked: root.showConversations()
+              }
+
+              Button {
+                text: root.sending ? "Sending…" : "Send"
+                enabled: !root.sending
+                  && (root.recipientNumber !== "" || recipientField.text.trim() !== "")
+                  && composeMessage.text.trim() !== ""
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                bordered: true
+                onClicked: root.sendNewMessage()
+              }
+            }
+          }
+
           RowLayout {
             visible: root.selectedConversation !== null
             Layout.fillWidth: true
@@ -478,7 +708,9 @@ Item {
             Layout.fillWidth: true
             text: root.selectedConversation
               ? "Press Enter to send · R to refresh · Esc to go back"
-              : root.filteredConversations.length + " of " + root.conversations.length
+              : root.composing
+                ? "Choose a synced contact or enter a phone number · Esc to cancel"
+                : root.filteredConversations.length + " of " + root.conversations.length
                 + " conversations · / search · PgUp/PgDn · Home/End"
             color: root.dim
             font.family: root.fontFamily
