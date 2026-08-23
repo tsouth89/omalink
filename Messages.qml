@@ -16,6 +16,8 @@ Item {
   property var selectedConversation: null
   property var messages: []
   property bool sending: false
+  property string pendingReply: ""
+  property string pendingThreadId: ""
   property bool loading: false
   property string error: ""
   property double nowMs: Date.now()
@@ -40,6 +42,10 @@ Item {
     conversations = []
     selectedConversation = null
     messages = []
+    if (!sending) {
+      pendingReply = ""
+      pendingThreadId = ""
+    }
     error = ""
   }
 
@@ -70,12 +76,15 @@ Item {
     messages = []
     replyField.text = ""
     error = ""
+    Qt.callLater(root.refresh)
   }
 
   function sendReply() {
     var message = replyField.text.trim()
     if (!selectedConversation || message === "" || sending) return
     sending = true
+    pendingReply = message
+    pendingThreadId = String(selectedConversation.threadId)
     error = ""
     replyProcess.command = [helperPath, "reply", deviceId, String(selectedConversation.threadId), message]
     replyProcess.running = true
@@ -113,11 +122,23 @@ Item {
     onExited: function(exitCode) {
       root.sending = false
       if (exitCode !== 0) {
+        root.pendingReply = ""
+        root.pendingThreadId = ""
         root.error = "Could not send reply"
         return
       }
+      var sentAt = Date.now()
+      if (root.selectedConversation
+          && String(root.selectedConversation.threadId) === root.pendingThreadId)
+        root.messages = Model.appendSentMessage(root.messages, root.pendingReply, sentAt)
+      root.conversations = Model.updateConversationAfterSend(
+        root.conversations,
+        root.pendingThreadId,
+        root.pendingReply,
+        sentAt)
+      root.pendingReply = ""
+      root.pendingThreadId = ""
       replyField.text = ""
-      root.openThread(root.selectedConversation)
     }
   }
 

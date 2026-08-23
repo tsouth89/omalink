@@ -59,6 +59,36 @@ function parseMessages(raw) {
   return parseConversations(raw)
 }
 
+function appendSentMessage(messages, body, timestamp) {
+  var current = Array.isArray(messages) ? messages : []
+  return current.concat([{
+    body: String(body || ""),
+    timestamp: Number(timestamp),
+    incoming: false,
+    attachmentCount: 0
+  }])
+}
+
+function updateConversationAfterSend(conversations, threadId, body, timestamp) {
+  if (!Array.isArray(conversations)) return []
+  var updated = null
+  var remaining = []
+  for (var i = 0; i < conversations.length; i++) {
+    var conversation = conversations[i]
+    if (!updated && Number(conversation.threadId) === Number(threadId)) {
+      updated = {}
+      for (var key in conversation) updated[key] = conversation[key]
+      updated.preview = String(body || "")
+      updated.timestamp = Number(timestamp)
+      updated.incoming = false
+      updated.unread = false
+    } else {
+      remaining.push(conversation)
+    }
+  }
+  return updated ? [updated].concat(remaining) : conversations.slice()
+}
+
 function conversationTitle(conversation) {
   if (!conversation) return "Unknown sender"
   var values = conversation.names && conversation.names.length ? conversation.names : conversation.addresses
@@ -92,6 +122,8 @@ if (typeof module !== "undefined") {
     connectivityText: connectivityText,
     parseConversations: parseConversations,
     parseMessages: parseMessages,
+    appendSentMessage: appendSentMessage,
+    updateConversationAfterSend: updateConversationAfterSend,
     conversationTitle: conversationTitle,
     relativeTime: relativeTime
   }
