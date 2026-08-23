@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: omalink <status|ring|clipboard|share|dismiss|contacts|conversations|messages|reply|sms> [arguments]" >&2
+  echo "Usage: omalink <status|ring|clipboard|share|dismiss|dismiss-all|contacts|conversations|messages|reply|sms> [arguments]" >&2
   exit 2
 }
 
@@ -145,6 +145,19 @@ dismiss_notification() {
     org.kde.kdeconnect.device.notifications.notification dismiss >/dev/null
 }
 
+dismiss_all_notifications() {
+  local device_id="${1:-}" notification_root raw notification_id
+  [[ $device_id =~ ^[A-Za-z0-9]+$ ]] || usage
+  notification_root="/modules/kdeconnect/devices/$device_id/notifications"
+  raw="$(busctl --user --json=short call org.kde.kdeconnect "$notification_root" \
+    org.kde.kdeconnect.device.notifications activeNotifications 2>/dev/null || true)"
+  while IFS= read -r notification_id; do
+    [[ $notification_id =~ ^[A-Za-z0-9._:-]+$ ]] || continue
+    busctl --user call org.kde.kdeconnect "$notification_root/$notification_id" \
+      org.kde.kdeconnect.device.notifications.notification dismiss >/dev/null 2>&1 || true
+  done < <(jq -r '.data[0][]?' <<<"$raw" 2>/dev/null)
+}
+
 contact_records_json() {
   local device_id="$1" device_path contact_dir
   device_path="/modules/kdeconnect/devices/$device_id"
@@ -279,6 +292,7 @@ case "${1:-}" in
   clipboard) shift; send_clipboard "${1:-}" ;;
   share) shift; share_text "${1:-}" "${2:-}" ;;
   dismiss) shift; dismiss_notification "${1:-}" "${2:-}" ;;
+  dismiss-all) shift; dismiss_all_notifications "${1:-}" ;;
   contacts) shift; contacts "${1:-}" ;;
   conversations) shift; conversations "${1:-}" ;;
   messages) shift; messages "${1:-}" "${2:-}" ;;

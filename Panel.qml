@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as Controls
 import QtQuick.Layouts
 import Quickshell
 import qs.Commons
@@ -239,22 +240,43 @@ Panel {
         }
       }
 
-      Text {
+      RowLayout {
         visible: root.notifications.length > 0
-        text: "PHONE NOTIFICATIONS · " + root.notifications.length
-        color: root.dim
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        font.bold: true
-        font.letterSpacing: 1.2
+        Layout.fillWidth: true
+
+        Text {
+          Layout.fillWidth: true
+          text: "PHONE NOTIFICATIONS · " + root.notifications.length
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+          font.letterSpacing: 1.2
+        }
+
+        Button {
+          text: "Clear all"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          onClicked: phone.dismissAllNotifications(phone.devices[0].id)
+        }
       }
 
-      Repeater {
-        model: root.notifications.slice(0, 5)
+      ListView {
+        visible: root.notifications.length > 0
+        Layout.fillWidth: true
+        Layout.preferredHeight: Math.min(contentHeight, Style.space(190))
+        clip: true
+        spacing: Style.space(6)
+        boundsBehavior: Flickable.StopAtBounds
+        interactive: contentHeight > height
+        model: root.notifications
 
-        Rectangle {
+        Controls.ScrollBar.vertical: Controls.ScrollBar { policy: Controls.ScrollBar.AsNeeded }
+
+        delegate: Rectangle {
           required property var modelData
-          Layout.fillWidth: true
+          width: ListView.view.width
           implicitHeight: notificationRow.implicitHeight + Style.space(16)
           color: Style.selectedFillFor(root.foreground, Color.accent)
           radius: Style.cornerRadius

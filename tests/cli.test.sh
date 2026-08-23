@@ -46,7 +46,10 @@ case "${*: -1}" in
   isCharging) printf '%s\n' 'b false' ;;
   cellularNetworkStrength) printf '%s\n' 'i 3' ;;
   cellularNetworkType) printf '%s\n' 's "5G"' ;;
-  dismiss) exit 0 ;;
+  dismiss) echo "dismiss $*" >>"$0.log"; exit 0 ;;
+  activeNotifications)
+    printf '%s\n' '{"type":"as","data":[["notif.1","notif.2"]]}'
+    ;;
   activeConversations)
     printf '%s\n' '{"type":"av","data":[[{"type":"(isa(s)xiixixa(xsss))","data":[1,"Newest",[["+15550000001"]],2000,1,0,7,10,-1,[]]},{"type":"(isa(s)xiixixa(xsss))","data":[1,"Older",[["+15550000002"]],1000,2,1,8,11,-1,[]]}]]}'
     ;;
@@ -72,6 +75,9 @@ PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" clipboard abc123 >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" share abc123 "hello phone" >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" share abc123 "https://omalink.app" >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss abc123 notification-1 >/dev/null
+: >"$temp_dir/busctl.log"
+PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss-all abc123 >/dev/null
+[[ "$(grep -c '/notifications/notif\.' "$temp_dir/busctl.log")" == 2 ]]
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" reply abc123 7 "Test reply" >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" sms abc123 +15550000001 "New message" >/dev/null
 contacts="$(XDG_DATA_HOME="$temp_dir/data" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" contacts abc123)"

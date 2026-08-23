@@ -77,6 +77,14 @@ Item {
     actionProcess.running = true
   }
 
+  function dismissAllNotifications(deviceId) {
+    if (!deviceId || actionProcess.running) return
+    actionStatus = "Clearing notifications…"
+    actionSuccess = "Notifications cleared"
+    actionProcess.command = [helperPath, "dismiss-all", String(deviceId)]
+    actionProcess.running = true
+  }
+
   function openPairing() {
     if (installed) Quickshell.execDetached(["kdeconnect-app"])
   }
