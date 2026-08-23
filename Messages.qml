@@ -643,7 +643,9 @@ Item {
 
                   Text {
                     Layout.alignment: Qt.AlignRight
-                    text: Model.relativeTime(modelData.timestamp, root.nowMs)
+                    text: modelData.pending
+                      ? "Syncing…"
+                      : Model.relativeTime(modelData.timestamp, root.nowMs)
                     color: modelData.incoming ? root.dim : Color.menu.selectedText
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
