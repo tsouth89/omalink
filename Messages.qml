@@ -117,7 +117,7 @@ Item {
           || Model.conversationMatchesNumber(conversation, pendingOutgoing.number)))
       setThreadMessages(threadId, Model.mergePendingOutgoing(
         messages, pendingOutgoing).messages)
-    loading = true
+    loading = messages.length === 0
     loadingThreadId = threadId
     error = ""
     threadProcess.command = [helperPath, "messages", deviceId, threadId]
@@ -184,11 +184,12 @@ Item {
   }
 
   Timer {
-    interval: 30000
+    interval: root.selectedConversation ? 15000 : 30000
     repeat: true
     running: root.opened
     onTriggered: {
-      if (!root.selectedConversation && !root.composing) root.refreshConversations()
+      root.nowMs = Date.now()
+      root.refresh()
     }
   }
 
