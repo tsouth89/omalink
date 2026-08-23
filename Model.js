@@ -45,7 +45,7 @@ function connectivityText(device) {
 function signalStrength(device) {
   if (!device || !device.connectivity) return -1
   var strength = Number(device.connectivity.strength)
-  return isFinite(strength) && strength >= 0 ? Math.min(4, Math.floor(strength)) : -1
+  return isFinite(strength) && strength >= 0 ? Math.floor(strength) : -1
 }
 
 function visibleNotifications(notifications) {

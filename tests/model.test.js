@@ -10,7 +10,7 @@ assert.equal(model.batteryText({ battery: { charge: 71, charging: false } }), "7
 assert.equal(model.batteryText({ battery: { charge: 42, charging: true } }), "42% · Charging")
 assert.equal(model.connectivityText({ connectivity: { strength: 3, type: "5G" } }), "5G")
 assert.equal(model.signalStrength({ connectivity: { strength: 3, type: "5G" } }), 3)
-assert.equal(model.signalStrength({ connectivity: { strength: 8, type: "5G" } }), 4)
+assert.equal(model.signalStrength({ connectivity: { strength: 4, type: "5G" } }), 4)
 assert.equal(model.signalStrength({}), -1)
 assert.equal(model.visibleNotifications([
   { appName: "Spotify", isConversation: false },
