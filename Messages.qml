@@ -107,6 +107,10 @@ Item {
       || String(selectedConversation.threadId) !== String(conversation.threadId)
     selectedConversation = conversation
     if (changingThread) messages = []
+    if (pendingOutgoing
+        && (String(conversation.threadId) === String(pendingOutgoing.threadId)
+          || Model.conversationMatchesNumber(conversation, pendingOutgoing.number)))
+      messages = Model.mergePendingOutgoing(messages, pendingOutgoing).messages
     loading = true
     error = ""
     threadProcess.command = [helperPath, "messages", deviceId, String(conversation.threadId)]
@@ -236,7 +240,8 @@ Item {
       root.pendingOutgoing = {
         number: root.pendingNewNumber,
         body: root.pendingNewBody,
-        timestamp: sentAt
+        timestamp: sentAt,
+        threadId: root.conversations[0].threadId
       }
       root.pendingSyncAttempts = 0
       root.composing = false
@@ -297,7 +302,8 @@ Item {
       onStreamFinished: {
         var fetched = Model.parseMessages(text)
         if (root.pendingOutgoing
-            && Model.conversationMatchesNumber(root.selectedConversation, root.pendingOutgoing.number)) {
+            && (String(root.selectedConversation.threadId) === String(root.pendingOutgoing.threadId)
+              || Model.conversationMatchesNumber(root.selectedConversation, root.pendingOutgoing.number))) {
           var merged = Model.mergePendingOutgoing(fetched, root.pendingOutgoing)
           root.messages = merged.messages
           if (merged.resolved) root.pendingOutgoing = null

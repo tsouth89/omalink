@@ -230,8 +230,9 @@ messages() {
   stdbuf -oL busctl --user --verbose --json=short monitor org.kde.kdeconnect >"$capture_file" &
   monitor_pid=$!
   sleep 0.1
-  busctl --user call org.kde.kdeconnect "$device_path" \
-    org.kde.kdeconnect.device.conversations requestConversation xii "$thread_id" 0 30 >/dev/null
+  timeout 12s busctl --user call org.kde.kdeconnect "$device_path" \
+    org.kde.kdeconnect.device.conversations requestConversation xii "$thread_id" 0 30 >/dev/null \
+    || true
 
   sleep 0.5
   kill "$monitor_pid" 2>/dev/null || true
