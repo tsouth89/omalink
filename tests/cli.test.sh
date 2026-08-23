@@ -46,7 +46,7 @@ PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" ring abc123 >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" clipboard abc123 >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss abc123 notification-1 >/dev/null
 conversations="$(PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" conversations abc123)"
-jq -e 'length == 2 and .[0].threadId == 7 and .[0].unread == true and .[1].incoming == false' <<<"$conversations" >/dev/null
+jq -e 'length == 2 and .[0].threadId == 7 and .[0].unread == true and .[0].names[0] == "+15550000001" and .[1].incoming == false' <<<"$conversations" >/dev/null
 if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss '../bad' notification-1 >/dev/null 2>&1; then
   echo "invalid device id was accepted" >&2
   exit 1

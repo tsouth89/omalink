@@ -56,10 +56,12 @@ function parseConversations(raw) {
 }
 
 function conversationTitle(conversation) {
-  if (!conversation || !Array.isArray(conversation.addresses) || conversation.addresses.length === 0)
+  if (!conversation) return "Unknown sender"
+  var values = conversation.names && conversation.names.length ? conversation.names : conversation.addresses
+  if (!values || !values.length)
     return "Unknown sender"
-  if (conversation.addresses.length === 1) return conversation.addresses[0]
-  return conversation.addresses[0] + " +" + (conversation.addresses.length - 1)
+  if (values.length === 1) return String(values[0])
+  return String(values[0]) + " +" + (values.length - 1)
 }
 
 function relativeTime(timestamp, now) {

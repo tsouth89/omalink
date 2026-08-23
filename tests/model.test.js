@@ -12,6 +12,7 @@ assert.equal(model.connectivityText({ connectivity: { strength: 3, type: "5G" } 
 assert.deepEqual(model.parseConversations("not json"), [])
 assert.equal(model.parseConversations('[{"threadId":1}]').length, 1)
 assert.equal(model.conversationTitle({ addresses: ["+15551234567"] }), "+15551234567")
+assert.equal(model.conversationTitle({ addresses: ["+15551234567"], names: ["Alex"] }), "Alex")
 assert.equal(model.conversationTitle({ addresses: ["Alex", "Sam"] }), "Alex +1")
 assert.equal(model.relativeTime(1000, 61000), "1m")
 

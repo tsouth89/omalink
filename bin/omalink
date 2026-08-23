@@ -130,16 +130,46 @@ dismiss_notification() {
 }
 
 conversations() {
-  local device_id="${1:-}" device_path raw
+  local device_id="${1:-}" device_path contact_dir contacts raw
   [[ $device_id =~ ^[A-Za-z0-9]+$ ]] || usage
   device_path="/modules/kdeconnect/devices/$device_id"
+  contact_dir="${XDG_DATA_HOME:-$HOME/.local/share}/kpeoplevcard/kdeconnect-$device_id"
+
+  busctl --user call org.kde.kdeconnect "$device_path/contacts" \
+    org.kde.kdeconnect.device.contacts synchronizeRemoteWithLocal >/dev/null 2>&1 || true
+
+  contacts='{}'
+  if compgen -G "$contact_dir/*.vcf" >/dev/null; then
+    contacts="$(awk '
+      function value() { return substr($0, index($0, ":") + 1) }
+      /^BEGIN:VCARD/ { name = ""; phone_count = 0 }
+      /^FN[;:]/ { name = value(); gsub(/\\,/, ",", name); gsub(/\\;/, ";", name) }
+      /^TEL[;:]/ { phones[++phone_count] = value() }
+      /^END:VCARD/ {
+        gsub(/[\t\r\n]/, " ", name)
+        for (i = 1; i <= phone_count; i++) if (name != "") print phones[i] "\t" name
+        delete phones
+      }
+    ' "$contact_dir"/*.vcf | jq -Rn '
+      reduce inputs as $line ({};
+        ($line | split("\t")) as $parts
+        | ($parts[0] | gsub("[^0-9]"; "") | if length > 10 then .[-10:] else . end) as $number
+        | if $number != "" and ($parts | length) > 1 then .[$number] = $parts[1] else . end)
+    ')"
+  fi
+
   raw="$(busctl --user --json=short call org.kde.kdeconnect "$device_path" \
     org.kde.kdeconnect.device.conversations activeConversations)"
-  jq -c '
+  jq -c --argjson contacts "$contacts" '
+    def number_key:
+      gsub("[^0-9]"; "") | if length > 10 then .[-10:] else . end;
+    def display_name:
+      . as $address | ($address | number_key) as $key | $contacts[$key] // $address;
     [.data[0][]? | .data as $message | {
       threadId: $message[6],
       preview: $message[1],
       addresses: ([$message[2][]?[0]] | unique),
+      names: ([$message[2][]?[0] | display_name] | unique),
       timestamp: $message[3],
       unread: ($message[5] == 0),
       incoming: ($message[4] == 1),
