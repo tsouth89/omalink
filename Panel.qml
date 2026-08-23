@@ -25,6 +25,7 @@ Panel {
   Service {
     id: phone
     settings: root.settings
+    panelOpen: root.opened
   }
 
   BarIconButton {

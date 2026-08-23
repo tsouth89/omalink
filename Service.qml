@@ -7,6 +7,7 @@ Item {
   id: root
 
   property var settings: ({})
+  property bool panelOpen: false
   property bool installed: false
   property bool refreshing: false
   property var devices: []
@@ -73,7 +74,7 @@ Item {
   }
 
   Timer {
-    interval: root.refreshIntervalSec * 1000
+    interval: (root.panelOpen ? 3 : root.refreshIntervalSec) * 1000
     repeat: true
     running: true
     triggeredOnStart: true
