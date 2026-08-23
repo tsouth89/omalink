@@ -60,6 +60,14 @@ Item {
     actionProcess.running = true
   }
 
+  function dismissNotification(deviceId, notificationId) {
+    if (!deviceId || !notificationId || actionProcess.running) return
+    actionStatus = "Dismissing notification…"
+    actionSuccess = "Notification dismissed"
+    actionProcess.command = [helperPath, "dismiss", String(deviceId), String(notificationId)]
+    actionProcess.running = true
+  }
+
   function openPairing() {
     if (installed) Quickshell.execDetached(["kdeconnect-app"])
   }

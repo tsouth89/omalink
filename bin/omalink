@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: omalink <status|ring|clipboard> [device-id]" >&2
+  echo "Usage: omalink <status|ring|clipboard|dismiss> [arguments]" >&2
   exit 2
 }
 
@@ -13,7 +13,7 @@ status() {
     return
   fi
 
-  local raw line id name device_path charge charging network_strength network_type
+  local raw line id name device_path charge charging network_strength network_type notifications
   local -a devices=()
   raw="$(kdeconnect-cli --list-available --id-name-only 2>/dev/null || true)"
 
@@ -27,6 +27,7 @@ status() {
     charging="$(dbus_property "$device_path/battery" org.kde.kdeconnect.device.battery isCharging b)"
     network_strength="$(dbus_property "$device_path/connectivity_report" org.kde.kdeconnect.device.connectivity_report cellularNetworkStrength i)"
     network_type="$(dbus_property "$device_path/connectivity_report" org.kde.kdeconnect.device.connectivity_report cellularNetworkType s)"
+    notifications="$(notification_json "$device_path")"
     devices+=("$(jq -cn \
       --arg id "$id" \
       --arg name "$name" \
@@ -34,7 +35,8 @@ status() {
       --argjson charging "${charging:-false}" \
       --argjson networkStrength "${network_strength:-null}" \
       --arg networkType "${network_type:-}" \
-      '{id: $id, name: $name, battery: {charge: $charge, charging: $charging}, connectivity: {strength: $networkStrength, type: $networkType}}')")
+      --argjson notifications "${notifications:-[]}" \
+      '{id: $id, name: $name, battery: {charge: $charge, charging: $charging}, connectivity: {strength: $networkStrength, type: $networkType}, notifications: $notifications}')")
   done <<<"$raw"
 
   if (( ${#devices[@]} == 0 )); then
@@ -44,6 +46,47 @@ status() {
       {ok: true, installed: true, devices: ., statusText:
         (if length == 1 then .[0].name else "\(length) phones connected" end)}'
   fi
+}
+
+notification_json() {
+  local device_path="$1" notification_root="$1/notifications" raw notification_id notification_path
+  local app_name title text icon_path dismissable reply_id
+  local -a notifications=()
+
+  raw="$(busctl --user --json=short call org.kde.kdeconnect "$notification_root" \
+    org.kde.kdeconnect.device.notifications activeNotifications 2>/dev/null || true)"
+  while IFS= read -r notification_id; do
+    [[ $notification_id =~ ^[A-Za-z0-9._:-]+$ ]] || continue
+    notification_path="$notification_root/$notification_id"
+    app_name="$(dbus_json_property "$notification_path" appName)"
+    title="$(dbus_json_property "$notification_path" title)"
+    text="$(dbus_json_property "$notification_path" text)"
+    icon_path="$(dbus_json_property "$notification_path" iconPath)"
+    dismissable="$(dbus_json_property "$notification_path" dismissable)"
+    reply_id="$(dbus_json_property "$notification_path" replyId)"
+    notifications+=("$(jq -cn \
+      --arg id "$notification_id" \
+      --arg appName "$app_name" \
+      --arg title "$title" \
+      --arg text "$text" \
+      --arg iconPath "$icon_path" \
+      --argjson dismissable "${dismissable:-false}" \
+      --arg replyId "$reply_id" \
+      '{id: $id, appName: $appName, title: $title, text: $text, iconPath: $iconPath, dismissable: $dismissable, replyable: ($replyId != "")}')")
+  done < <(jq -r '.data[0][]?' <<<"$raw" 2>/dev/null)
+
+  if (( ${#notifications[@]} == 0 )); then
+    printf '%s\n' '[]'
+  else
+    printf '%s\n' "${notifications[@]}" | jq -sc '.'
+  fi
+}
+
+dbus_json_property() {
+  local path="$1" property="$2"
+  busctl --user --json=short get-property org.kde.kdeconnect "$path" \
+    org.kde.kdeconnect.device.notifications.notification "$property" 2>/dev/null \
+    | jq -r '.data // empty' 2>/dev/null || true
 }
 
 dbus_property() {
@@ -78,9 +121,18 @@ send_clipboard() {
   kdeconnect-cli --device "$device_id" --send-clipboard
 }
 
+dismiss_notification() {
+  local device_id="${1:-}" notification_id="${2:-}"
+  [[ $device_id =~ ^[A-Za-z0-9]+$ && $notification_id =~ ^[A-Za-z0-9._:-]+$ ]] || usage
+  busctl --user call org.kde.kdeconnect \
+    "/modules/kdeconnect/devices/$device_id/notifications/$notification_id" \
+    org.kde.kdeconnect.device.notifications.notification dismiss >/dev/null
+}
+
 case "${1:-}" in
   status) status ;;
   ring) shift; ring "${1:-}" ;;
   clipboard) shift; send_clipboard "${1:-}" ;;
+  dismiss) shift; dismiss_notification "${1:-}" "${2:-}" ;;
   *) usage ;;
 esac

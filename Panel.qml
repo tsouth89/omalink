@@ -14,6 +14,8 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color iconColor: phone.connected ? foreground : dim
+  readonly property var notifications: phone.devices.length > 0 && Array.isArray(phone.devices[0].notifications)
+    ? phone.devices[0].notifications : []
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -155,6 +157,81 @@ Panel {
               fontFamily: root.fontFamily
               bordered: true
               onClicked: phone.ring(modelData.id)
+            }
+          }
+        }
+      }
+
+      Text {
+        visible: root.notifications.length > 0
+        text: "PHONE NOTIFICATIONS"
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        font.letterSpacing: 1.2
+      }
+
+      Repeater {
+        model: root.notifications
+
+        Rectangle {
+          required property var modelData
+          Layout.fillWidth: true
+          implicitHeight: notificationRow.implicitHeight + Style.space(16)
+          color: Style.selectedFillFor(root.foreground, Color.accent)
+          radius: Style.cornerRadius
+
+          RowLayout {
+            id: notificationRow
+            anchors.fill: parent
+            anchors.margins: Style.space(8)
+            spacing: Style.space(8)
+
+            ColumnLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(2)
+
+              Text {
+                Layout.fillWidth: true
+                text: modelData.appName
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                elide: Text.ElideRight
+              }
+
+              Text {
+                Layout.fillWidth: true
+                text: modelData.title
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                elide: Text.ElideRight
+              }
+
+              Text {
+                visible: text !== ""
+                Layout.fillWidth: true
+                text: modelData.text
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.Wrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+              }
+            }
+
+            PanelActionButton {
+              visible: modelData.dismissable
+              iconText: "󰅖"
+              tooltipText: "Dismiss on phone"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onClicked: phone.dismissNotification(phone.devices[0].id, modelData.id)
             }
           }
         }
