@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
@@ -24,15 +23,6 @@ Panel {
   Service {
     id: phone
     settings: root.settings
-  }
-
-  IpcHandler {
-    target: root.ipcTarget
-    function open(): void { root.open() }
-    function close(): void { root.close() }
-    function toggle(): void { root.toggle() }
-    function refresh(): string { phone.refresh(); return "ok" }
-    function status(): string { return phone.statusText }
   }
 
   BarIconButton {
