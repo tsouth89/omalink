@@ -39,11 +39,21 @@ function batteryText(device) {
 function connectivityText(device) {
   if (!device || !device.connectivity) return ""
   var type = String(device.connectivity.type || "")
+  return type !== "Unknown" ? type : ""
+}
+
+function signalStrength(device) {
+  if (!device || !device.connectivity) return -1
   var strength = Number(device.connectivity.strength)
-  var parts = []
-  if (type !== "" && type !== "Unknown") parts.push(type)
-  if (isFinite(strength) && strength >= 0) parts.push("Signal " + strength + "/4")
-  return parts.join(" · ")
+  return isFinite(strength) && strength >= 0 ? Math.min(4, Math.floor(strength)) : -1
+}
+
+function visibleNotifications(notifications) {
+  if (!Array.isArray(notifications)) return []
+  return notifications.filter(function(notification) {
+    var app = String((notification && notification.appName) || "").toLowerCase()
+    return !(app === "spotify" && !notification.isConversation)
+  })
 }
 
 function parseConversations(raw) {
@@ -120,6 +130,8 @@ if (typeof module !== "undefined") {
     deviceSummary: deviceSummary,
     batteryText: batteryText,
     connectivityText: connectivityText,
+    signalStrength: signalStrength,
+    visibleNotifications: visibleNotifications,
     parseConversations: parseConversations,
     parseMessages: parseMessages,
     appendSentMessage: appendSentMessage,

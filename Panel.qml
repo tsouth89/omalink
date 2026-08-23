@@ -15,7 +15,7 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color iconColor: phone.connected ? foreground : dim
   readonly property var notifications: phone.devices.length > 0 && Array.isArray(phone.devices[0].notifications)
-    ? phone.devices[0].notifications : []
+    ? Model.visibleNotifications(phone.devices[0].notifications) : []
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -133,12 +133,23 @@ Panel {
                 font.pixelSize: Style.font.caption
               }
 
-              Text {
-                visible: text !== ""
-                text: Model.connectivityText(modelData)
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
+              RowLayout {
+                visible: Model.connectivityText(modelData) !== "" || Model.signalStrength(modelData) >= 0
+                spacing: Style.space(5)
+
+                Text {
+                  visible: text !== ""
+                  text: Model.connectivityText(modelData)
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+
+                SignalBars {
+                  visible: strength >= 0
+                  strength: Model.signalStrength(modelData)
+                  activeColor: root.foreground
+                }
               }
             }
 
