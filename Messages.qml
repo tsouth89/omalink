@@ -15,6 +15,7 @@ Item {
   property var conversations: []
   property var selectedConversation: null
   property var messages: []
+  property bool sending: false
   property bool loading: false
   property string error: ""
   property double nowMs: Date.now()
@@ -67,7 +68,17 @@ Item {
   function showConversations() {
     selectedConversation = null
     messages = []
+    replyField.text = ""
     error = ""
+  }
+
+  function sendReply() {
+    var message = replyField.text.trim()
+    if (!selectedConversation || message === "" || sending) return
+    sending = true
+    error = ""
+    replyProcess.command = [helperPath, "reply", deviceId, String(selectedConversation.threadId), message]
+    replyProcess.running = true
   }
 
   Timer {
@@ -90,6 +101,23 @@ Item {
     onExited: function(exitCode) {
       root.loading = false
       if (exitCode !== 0) root.error = "Could not load messages"
+    }
+  }
+
+  Process {
+    id: replyProcess
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: if (String(text || "").trim() !== "") root.error = "Could not send reply"
+    }
+    onExited: function(exitCode) {
+      root.sending = false
+      if (exitCode !== 0) {
+        root.error = "Could not send reply"
+        return
+      }
+      replyField.text = ""
+      root.openThread(root.selectedConversation)
     }
   }
 
@@ -337,10 +365,35 @@ Item {
             }
           }
 
+          RowLayout {
+            visible: root.selectedConversation !== null
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+
+            TextField {
+              id: replyField
+              Layout.fillWidth: true
+              enabled: !root.sending
+              placeholderText: root.sending ? "Sending…" : "Reply"
+              foreground: root.foreground
+              font.family: root.fontFamily
+              onAccepted: root.sendReply()
+            }
+
+            Button {
+              text: "Send"
+              enabled: !root.sending && replyField.text.trim() !== ""
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              bordered: true
+              onClicked: root.sendReply()
+            }
+          }
+
           Text {
             Layout.fillWidth: true
             text: root.selectedConversation
-              ? "Read-only · Press R to refresh · Esc to go back"
+              ? "Press Enter to send · R to refresh · Esc to go back"
               : "Read-only preview · Press R to refresh · Esc to close"
             color: root.dim
             font.family: root.fontFamily

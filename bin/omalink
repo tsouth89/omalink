@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: omalink <status|ring|clipboard|dismiss|conversations|messages> [arguments]" >&2
+  echo "Usage: omalink <status|ring|clipboard|dismiss|conversations|messages|reply> [arguments]" >&2
   exit 2
 }
 
@@ -226,6 +226,15 @@ messages() {
   ' "$capture_file"
 }
 
+reply() {
+  local device_id="${1:-}" thread_id="${2:-}" message="${3:-}"
+  [[ $device_id =~ ^[A-Za-z0-9]+$ && $thread_id =~ ^[0-9]+$ && -n $message ]] || usage
+  busctl --user call org.kde.kdeconnect \
+    "/modules/kdeconnect/devices/$device_id" \
+    org.kde.kdeconnect.device.conversations replyToConversation \
+    xsav "$thread_id" "$message" 0 >/dev/null
+}
+
 case "${1:-}" in
   status) status ;;
   ring) shift; ring "${1:-}" ;;
@@ -233,5 +242,6 @@ case "${1:-}" in
   dismiss) shift; dismiss_notification "${1:-}" "${2:-}" ;;
   conversations) shift; conversations "${1:-}" ;;
   messages) shift; messages "${1:-}" "${2:-}" ;;
+  reply) shift; reply "${1:-}" "${2:-}" "${3:-}" ;;
   *) usage ;;
 esac

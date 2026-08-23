@@ -26,6 +26,9 @@ chmod +x "$temp_dir/kdeconnect-cli"
 
 cat >"$temp_dir/busctl" <<'EOF'
 #!/usr/bin/env bash
+if [[ " $* " == *" replyToConversation "* ]]; then
+  exit 0
+fi
 case "${*: -1}" in
   charge) printf '%s\n' 'i 71' ;;
   isCharging) printf '%s\n' 'b false' ;;
@@ -45,10 +48,15 @@ jq -e '.installed == true and (.devices | length) == 2 and .devices[0].name == "
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" ring abc123 >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" clipboard abc123 >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss abc123 notification-1 >/dev/null
+PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" reply abc123 7 "Test reply" >/dev/null
 conversations="$(PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" conversations abc123)"
 jq -e 'length == 2 and .[0].threadId == 7 and .[0].unread == true and .[0].names[0] == "+15550000001" and .[1].incoming == false' <<<"$conversations" >/dev/null
 if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss '../bad' notification-1 >/dev/null 2>&1; then
   echo "invalid device id was accepted" >&2
+  exit 1
+fi
+if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" reply abc123 bad "Test reply" >/dev/null 2>&1; then
+  echo "invalid thread id was accepted" >&2
   exit 1
 fi
 
