@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
@@ -18,9 +19,12 @@ Item {
   property bool sending: false
   property string pendingReply: ""
   property string pendingThreadId: ""
+  property string searchText: ""
   property bool loading: false
   property string error: ""
   property double nowMs: Date.now()
+
+  readonly property var filteredConversations: Model.filterConversations(conversations, searchText)
 
   readonly property string pluginDir: Qt.resolvedUrl(".").toString().replace(/^file:\/\//, "").replace(/\/$/, "")
   readonly property string helperPath: pluginDir + "/bin/omalink"
@@ -32,6 +36,7 @@ Item {
     var payload = {}
     try { payload = JSON.parse(String(payloadJson || "{}")) || {} } catch (parseError) { payload = {} }
     deviceId = String(payload.deviceId || "")
+    searchText = ""
     opened = true
     refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -42,6 +47,7 @@ Item {
     conversations = []
     selectedConversation = null
     messages = []
+    searchText = ""
     if (!sending) {
       pendingReply = ""
       pendingThreadId = ""
@@ -182,7 +188,25 @@ Item {
         else root.close()
       }
       Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_R) {
+        if (!root.selectedConversation && (event.key === Qt.Key_Slash
+            || (event.key === Qt.Key_F && (event.modifiers & Qt.ControlModifier)))) {
+          searchField.forceActiveFocus()
+          event.accepted = true
+        } else if (!root.selectedConversation && event.key === Qt.Key_PageDown) {
+          conversationList.contentY = Math.min(
+            Math.max(0, conversationList.contentHeight - conversationList.height),
+            conversationList.contentY + conversationList.height * 0.85)
+          event.accepted = true
+        } else if (!root.selectedConversation && event.key === Qt.Key_PageUp) {
+          conversationList.contentY = Math.max(0, conversationList.contentY - conversationList.height * 0.85)
+          event.accepted = true
+        } else if (!root.selectedConversation && event.key === Qt.Key_Home) {
+          conversationList.positionViewAtBeginning()
+          event.accepted = true
+        } else if (!root.selectedConversation && event.key === Qt.Key_End) {
+          conversationList.positionViewAtEnd()
+          event.accepted = true
+        } else if (event.key === Qt.Key_R) {
           root.refresh()
           event.accepted = true
         }
@@ -241,22 +265,59 @@ Item {
           }
 
           Text {
-            visible: root.loading || root.error !== "" || (root.selectedConversation ? root.messages.length === 0 : root.conversations.length === 0)
+            visible: root.loading || root.error !== "" || (root.selectedConversation ? root.messages.length === 0 : root.filteredConversations.length === 0)
             Layout.fillWidth: true
-            text: root.error !== "" ? root.error : (root.loading ? "Loading…" : (root.selectedConversation ? "No messages" : "No conversations"))
+            text: root.error !== "" ? root.error : (root.loading ? "Loading…" : (root.selectedConversation ? "No messages" : (root.searchText === "" ? "No conversations" : "No matches")))
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
             horizontalAlignment: Text.AlignHCenter
           }
 
+          RowLayout {
+            visible: root.selectedConversation === null
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+
+            TextField {
+              id: searchField
+              Layout.fillWidth: true
+              placeholderText: "Search conversations"
+              text: root.searchText
+              foreground: root.foreground
+              font.family: root.fontFamily
+              onTextChanged: root.searchText = text
+              Keys.onEscapePressed: {
+                if (text !== "") text = ""
+                else keyCatcher.forceActiveFocus()
+              }
+            }
+
+            PanelActionButton {
+              visible: root.searchText !== ""
+              iconText: "󰅖"
+              tooltipText: "Clear search"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onClicked: {
+                root.searchText = ""
+                searchField.forceActiveFocus()
+              }
+            }
+          }
+
           ListView {
+            id: conversationList
             visible: root.selectedConversation === null
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
             spacing: Style.space(4)
-            model: root.conversations
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentHeight > height
+            model: root.filteredConversations
+
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
             delegate: Rectangle {
               required property var modelData
@@ -417,7 +478,8 @@ Item {
             Layout.fillWidth: true
             text: root.selectedConversation
               ? "Press Enter to send · R to refresh · Esc to go back"
-              : "Read-only preview · Press R to refresh · Esc to close"
+              : root.filteredConversations.length + " of " + root.conversations.length
+                + " conversations · / search · PgUp/PgDn · Home/End"
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption

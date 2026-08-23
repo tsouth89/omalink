@@ -16,6 +16,14 @@ assert.equal(model.visibleNotifications([
   { appName: "Spotify", isConversation: false },
   { appName: "Messages", isConversation: true }
 ]).length, 1)
+const searchableConversations = [
+  { names: ["Alex Rivera"], addresses: ["+15550000001"], preview: "Dinner tonight" },
+  { names: ["Sam"], addresses: ["+15550000002"], preview: "Project update" }
+]
+assert.equal(model.filterConversations(searchableConversations, "rivera").length, 1)
+assert.equal(model.filterConversations(searchableConversations, "0002")[0].names[0], "Sam")
+assert.equal(model.filterConversations(searchableConversations, "project").length, 1)
+assert.equal(model.filterConversations(searchableConversations, "missing").length, 0)
 assert.deepEqual(model.parseConversations("not json"), [])
 assert.equal(model.parseConversations('[{"threadId":1}]').length, 1)
 assert.equal(model.parseMessages('[{"body":"Hello"}]')[0].body, "Hello")

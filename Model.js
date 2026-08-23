@@ -56,6 +56,19 @@ function visibleNotifications(notifications) {
   })
 }
 
+function filterConversations(conversations, query) {
+  if (!Array.isArray(conversations)) return []
+  var needle = String(query || "").trim().toLowerCase()
+  if (needle === "") return conversations
+  return conversations.filter(function(conversation) {
+    var values = []
+    if (conversation && conversation.names) values = values.concat(conversation.names)
+    if (conversation && conversation.addresses) values = values.concat(conversation.addresses)
+    values.push(conversation ? conversation.preview : "")
+    return values.join("\n").toLowerCase().indexOf(needle) !== -1
+  })
+}
+
 function parseConversations(raw) {
   try {
     var parsed = JSON.parse(String(raw || "[]"))
@@ -132,6 +145,7 @@ if (typeof module !== "undefined") {
     connectivityText: connectivityText,
     signalStrength: signalStrength,
     visibleNotifications: visibleNotifications,
+    filterConversations: filterConversations,
     parseConversations: parseConversations,
     parseMessages: parseMessages,
     appendSentMessage: appendSentMessage,
