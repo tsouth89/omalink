@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: omalink <status|ring|clipboard|dismiss|conversations> [arguments]" >&2
+  echo "Usage: omalink <status|ring|clipboard|dismiss|conversations|messages> [arguments]" >&2
   exit 2
 }
 
@@ -180,11 +180,58 @@ conversations() {
   ' <<<"$raw"
 }
 
+messages() {
+  local device_id="${1:-}" thread_id="${2:-}" device_path capture_dir capture_file monitor_pid
+  [[ $device_id =~ ^[A-Za-z0-9]+$ && $thread_id =~ ^[0-9]+$ ]] || usage
+  device_path="/modules/kdeconnect/devices/$device_id"
+  capture_dir="$(mktemp -d)"
+  capture_file="$capture_dir/signals"
+  monitor_pid=""
+
+  cleanup_messages() {
+    [[ -z $monitor_pid ]] || kill "$monitor_pid" 2>/dev/null || true
+    rm -r "$capture_dir"
+  }
+  trap cleanup_messages RETURN
+
+  busctl --user --verbose --json=short monitor org.kde.kdeconnect >"$capture_file" &
+  monitor_pid=$!
+  sleep 0.1
+  busctl --user call org.kde.kdeconnect "$device_path" \
+    org.kde.kdeconnect.device.conversations requestConversation xii "$thread_id" 0 30 >/dev/null
+
+  for _ in {1..20}; do
+    grep -q '"member":"conversationLoaded"' "$capture_file" 2>/dev/null && break
+    sleep 0.1
+  done
+  kill "$monitor_pid" 2>/dev/null || true
+  wait "$monitor_pid" 2>/dev/null || true
+  monitor_pid=""
+
+  jq -sc --argjson threadId "$thread_id" '
+    [.[]
+      | select(.type == "signal"
+          and .interface == "org.kde.kdeconnect.device.conversations"
+          and .member == "conversationUpdated")
+      | .payload.data[0].data
+      | select(.[6] == $threadId)
+      | {
+          body: .[1],
+          timestamp: .[3],
+          incoming: (.[4] == 1),
+          attachmentCount: (.[9] | length)
+        }]
+    | unique_by(.timestamp, .body)
+    | sort_by(.timestamp)
+  ' "$capture_file"
+}
+
 case "${1:-}" in
   status) status ;;
   ring) shift; ring "${1:-}" ;;
   clipboard) shift; send_clipboard "${1:-}" ;;
   dismiss) shift; dismiss_notification "${1:-}" "${2:-}" ;;
   conversations) shift; conversations "${1:-}" ;;
+  messages) shift; messages "${1:-}" "${2:-}" ;;
   *) usage ;;
 esac

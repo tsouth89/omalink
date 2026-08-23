@@ -13,6 +13,8 @@ Item {
   property bool opened: false
   property string deviceId: ""
   property var conversations: []
+  property var selectedConversation: null
+  property var messages: []
   property bool loading: false
   property string error: ""
   property double nowMs: Date.now()
@@ -35,15 +37,37 @@ Item {
   function close() {
     opened = false
     conversations = []
+    selectedConversation = null
+    messages = []
     error = ""
   }
 
   function refresh() {
+    if (selectedConversation) {
+      openThread(selectedConversation)
+      return
+    }
     if (deviceId === "" || conversationProcess.running) return
     loading = true
     error = ""
     conversationProcess.command = [helperPath, "conversations", deviceId]
     conversationProcess.running = true
+  }
+
+  function openThread(conversation) {
+    if (!conversation || threadProcess.running) return
+    selectedConversation = conversation
+    messages = []
+    loading = true
+    error = ""
+    threadProcess.command = [helperPath, "messages", deviceId, String(conversation.threadId)]
+    threadProcess.running = true
+  }
+
+  function showConversations() {
+    selectedConversation = null
+    messages = []
+    error = ""
   }
 
   Timer {
@@ -69,6 +93,22 @@ Item {
     }
   }
 
+  Process {
+    id: threadProcess
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.messages = Model.parseMessages(text)
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: if (String(text || "").trim() !== "") root.error = "Could not load conversation"
+    }
+    onExited: function(exitCode) {
+      root.loading = false
+      if (exitCode !== 0) root.error = "Could not load conversation"
+    }
+  }
+
   PanelWindow {
     visible: root.opened
     anchors { top: true; bottom: true; left: true; right: true }
@@ -88,7 +128,10 @@ Item {
       id: keyCatcher
       anchors.fill: parent
       focus: true
-      Keys.onEscapePressed: root.close()
+      Keys.onEscapePressed: {
+        if (root.selectedConversation) root.showConversations()
+        else root.close()
+      }
       Keys.onPressed: function(event) {
         if (event.key === Qt.Key_R) {
           root.refresh()
@@ -113,9 +156,18 @@ Item {
           RowLayout {
             Layout.fillWidth: true
 
+            PanelActionButton {
+              visible: root.selectedConversation !== null
+              iconText: "󰁍"
+              tooltipText: "Back to conversations"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onClicked: root.showConversations()
+            }
+
             Text {
               Layout.fillWidth: true
-              text: "Messages"
+              text: root.selectedConversation ? Model.conversationTitle(root.selectedConversation) : "Messages"
               color: root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.display
@@ -140,9 +192,9 @@ Item {
           }
 
           Text {
-            visible: root.loading || root.error !== "" || root.conversations.length === 0
+            visible: root.loading || root.error !== "" || (root.selectedConversation ? root.messages.length === 0 : root.conversations.length === 0)
             Layout.fillWidth: true
-            text: root.error !== "" ? root.error : (root.loading ? "Loading conversations…" : "No conversations")
+            text: root.error !== "" ? root.error : (root.loading ? "Loading…" : (root.selectedConversation ? "No messages" : "No conversations"))
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
@@ -150,6 +202,7 @@ Item {
           }
 
           ListView {
+            visible: root.selectedConversation === null
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
@@ -223,14 +276,72 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: root.error = "Thread view is next"
+                onClicked: root.openThread(modelData)
+              }
+            }
+          }
+
+          ListView {
+            id: messageList
+            visible: root.selectedConversation !== null
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            clip: true
+            spacing: Style.space(8)
+            model: root.messages
+            onCountChanged: positionViewAtEnd()
+
+            delegate: Item {
+              required property var modelData
+              width: ListView.view.width
+              height: bubble.implicitHeight
+
+              Rectangle {
+                id: bubble
+                anchors.left: modelData.incoming ? parent.left : undefined
+                anchors.right: modelData.incoming ? undefined : parent.right
+                width: Math.min(messageText.implicitWidth + Style.space(24), parent.width * 0.78)
+                implicitHeight: messageColumn.implicitHeight + Style.space(16)
+                color: modelData.incoming
+                  ? Style.selectedFillFor(root.foreground, Color.accent)
+                  : Color.accent
+                radius: Style.cornerRadius
+
+                ColumnLayout {
+                  id: messageColumn
+                  anchors.fill: parent
+                  anchors.margins: Style.space(8)
+                  spacing: Style.space(4)
+
+                  Text {
+                    id: messageText
+                    Layout.fillWidth: true
+                    text: modelData.body !== ""
+                      ? modelData.body
+                      : (modelData.attachmentCount > 0 ? "Attachment" : "")
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    wrapMode: Text.Wrap
+                  }
+
+                  Text {
+                    Layout.alignment: Qt.AlignRight
+                    text: Model.relativeTime(modelData.timestamp, root.nowMs)
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                }
               }
             }
           }
 
           Text {
             Layout.fillWidth: true
-            text: "Read-only preview · Press R to refresh · Esc to close"
+            text: root.selectedConversation
+              ? "Read-only · Press R to refresh · Esc to go back"
+              : "Read-only preview · Press R to refresh · Esc to close"
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption

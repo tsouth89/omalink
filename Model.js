@@ -55,6 +55,10 @@ function parseConversations(raw) {
   }
 }
 
+function parseMessages(raw) {
+  return parseConversations(raw)
+}
+
 function conversationTitle(conversation) {
   if (!conversation) return "Unknown sender"
   var values = conversation.names && conversation.names.length ? conversation.names : conversation.addresses
@@ -87,6 +91,7 @@ if (typeof module !== "undefined") {
     batteryText: batteryText,
     connectivityText: connectivityText,
     parseConversations: parseConversations,
+    parseMessages: parseMessages,
     conversationTitle: conversationTitle,
     relativeTime: relativeTime
   }

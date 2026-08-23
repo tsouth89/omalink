@@ -11,6 +11,7 @@ assert.equal(model.batteryText({ battery: { charge: 42, charging: true } }), "42
 assert.equal(model.connectivityText({ connectivity: { strength: 3, type: "5G" } }), "5G · Signal 3/4")
 assert.deepEqual(model.parseConversations("not json"), [])
 assert.equal(model.parseConversations('[{"threadId":1}]').length, 1)
+assert.equal(model.parseMessages('[{"body":"Hello"}]')[0].body, "Hello")
 assert.equal(model.conversationTitle({ addresses: ["+15551234567"] }), "+15551234567")
 assert.equal(model.conversationTitle({ addresses: ["+15551234567"], names: ["Alex"] }), "Alex")
 assert.equal(model.conversationTitle({ addresses: ["Alex", "Sam"] }), "Alex +1")
