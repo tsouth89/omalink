@@ -32,6 +32,9 @@ case "${*: -1}" in
   cellularNetworkStrength) printf '%s\n' 'i 3' ;;
   cellularNetworkType) printf '%s\n' 's "5G"' ;;
   dismiss) exit 0 ;;
+  activeConversations)
+    printf '%s\n' '{"type":"av","data":[[{"type":"(isa(s)xiixixa(xsss))","data":[1,"Newest",[["+15550000001"]],2000,1,0,7,10,-1,[]]},{"type":"(isa(s)xiixixa(xsss))","data":[1,"Older",[["+15550000002"]],1000,2,1,8,11,-1,[]]}]]}'
+    ;;
   *) exit 1 ;;
 esac
 EOF
@@ -42,6 +45,8 @@ jq -e '.installed == true and (.devices | length) == 2 and .devices[0].name == "
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" ring abc123 >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" clipboard abc123 >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss abc123 notification-1 >/dev/null
+conversations="$(PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" conversations abc123)"
+jq -e 'length == 2 and .[0].threadId == 7 and .[0].unread == true and .[1].incoming == false' <<<"$conversations" >/dev/null
 if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss '../bad' notification-1 >/dev/null 2>&1; then
   echo "invalid device id was accepted" >&2
   exit 1

@@ -152,7 +152,7 @@ Panel {
             }
 
             Button {
-              iconText: "󰋚"
+              iconText: "󰏲"
               tooltipText: "Ring phone"
               foreground: root.foreground
               fontFamily: root.fontFamily
@@ -268,6 +268,21 @@ Panel {
         fontFamily: root.fontFamily
         bordered: true
         onClicked: phone.openPairing()
+      }
+
+      Button {
+        visible: phone.devices.length > 0
+        Layout.alignment: Qt.AlignHCenter
+        iconText: "󰍩"
+        text: "Messages"
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        bordered: true
+        onClicked: {
+          var deviceId = phone.devices[0].id
+          root.close()
+          bar.shell.summon("omalink.phone", JSON.stringify({ deviceId: deviceId }))
+        }
       }
     }
   }

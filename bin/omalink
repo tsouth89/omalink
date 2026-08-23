@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: omalink <status|ring|clipboard|dismiss> [arguments]" >&2
+  echo "Usage: omalink <status|ring|clipboard|dismiss|conversations> [arguments]" >&2
   exit 2
 }
 
@@ -129,10 +129,32 @@ dismiss_notification() {
     org.kde.kdeconnect.device.notifications.notification dismiss >/dev/null
 }
 
+conversations() {
+  local device_id="${1:-}" device_path raw
+  [[ $device_id =~ ^[A-Za-z0-9]+$ ]] || usage
+  device_path="/modules/kdeconnect/devices/$device_id"
+  raw="$(busctl --user --json=short call org.kde.kdeconnect "$device_path" \
+    org.kde.kdeconnect.device.conversations activeConversations)"
+  jq -c '
+    [.data[0][]? | .data as $message | {
+      threadId: $message[6],
+      preview: $message[1],
+      addresses: ([$message[2][]?[0]] | unique),
+      timestamp: $message[3],
+      unread: ($message[5] == 0),
+      incoming: ($message[4] == 1),
+      attachmentCount: ($message[9] | length)
+    }]
+    | sort_by(.timestamp)
+    | reverse
+  ' <<<"$raw"
+}
+
 case "${1:-}" in
   status) status ;;
   ring) shift; ring "${1:-}" ;;
   clipboard) shift; send_clipboard "${1:-}" ;;
   dismiss) shift; dismiss_notification "${1:-}" "${2:-}" ;;
+  conversations) shift; conversations "${1:-}" ;;
   *) usage ;;
 esac

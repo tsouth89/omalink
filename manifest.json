@@ -6,9 +6,10 @@
   "author": "OmaLink contributors",
   "license": "MIT",
   "description": "Native Android phone integration for Omarchy, powered by KDE Connect.",
-  "kinds": ["bar-widget"],
+  "kinds": ["bar-widget", "overlay"],
   "entryPoints": {
-    "barWidget": "Panel.qml"
+    "barWidget": "Panel.qml",
+    "overlay": "Messages.qml"
   },
   "barWidget": {
     "displayName": "OmaLink",
