@@ -227,7 +227,7 @@ Panel {
 
               Text {
                 Layout.fillWidth: true
-                text: modelData.title
+                text: Model.notificationTitle(modelData, phone.hideMessagePreviews)
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
@@ -238,7 +238,7 @@ Panel {
               Text {
                 visible: text !== ""
                 Layout.fillWidth: true
-                text: modelData.text
+                text: Model.notificationText(modelData, phone.hideMessagePreviews)
                 color: root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption

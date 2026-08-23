@@ -50,7 +50,7 @@ status() {
 
 notification_json() {
   local device_path="$1" notification_root="$1/notifications" raw notification_id notification_path
-  local app_name title text icon_path dismissable reply_id
+  local app_name title text icon_path dismissable reply_id is_conversation
   local -a notifications=()
 
   raw="$(busctl --user --json=short call org.kde.kdeconnect "$notification_root" \
@@ -64,6 +64,7 @@ notification_json() {
     icon_path="$(dbus_json_property "$notification_path" iconPath)"
     dismissable="$(dbus_json_property "$notification_path" dismissable)"
     reply_id="$(dbus_json_property "$notification_path" replyId)"
+    is_conversation="$(dbus_json_property "$notification_path" isConversation)"
     notifications+=("$(jq -cn \
       --arg id "$notification_id" \
       --arg appName "$app_name" \
@@ -72,7 +73,8 @@ notification_json() {
       --arg iconPath "$icon_path" \
       --argjson dismissable "${dismissable:-false}" \
       --arg replyId "$reply_id" \
-      '{id: $id, appName: $appName, title: $title, text: $text, iconPath: $iconPath, dismissable: $dismissable, replyable: ($replyId != "")}')")
+      --argjson isConversation "${is_conversation:-false}" \
+      '{id: $id, appName: $appName, title: $title, text: $text, iconPath: $iconPath, dismissable: $dismissable, replyable: ($replyId != ""), isConversation: $isConversation}')")
   done < <(jq -r '.data[0][]?' <<<"$raw" 2>/dev/null)
 
   if (( ${#notifications[@]} == 0 )); then
