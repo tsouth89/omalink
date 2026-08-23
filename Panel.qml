@@ -140,7 +140,7 @@ Panel {
             }
 
             Button {
-              iconText: "󰂛"
+              iconText: "󰅌"
               tooltipText: "Send clipboard"
               foreground: root.foreground
               fontFamily: root.fontFamily
