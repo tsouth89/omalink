@@ -20,6 +20,14 @@ if [[ ${1:-} == --device && ${3:-} == --send-clipboard ]]; then
   [[ ${2:-} == abc123 ]]
   exit
 fi
+if [[ ${1:-} == --device && ${3:-} == --share-text ]]; then
+  [[ ${2:-} == abc123 && ${4:-} == "hello phone" ]]
+  exit
+fi
+if [[ ${1:-} == --device && ${3:-} == --share ]]; then
+  [[ ${2:-} == abc123 && ${4:-} == "https://omalink.app" ]]
+  exit
+fi
 exit 1
 EOF
 chmod +x "$temp_dir/kdeconnect-cli"
@@ -47,6 +55,8 @@ status="$(PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" status)"
 jq -e '.installed == true and (.devices | length) == 2 and .devices[0].name == "Pixel 9" and .devices[0].battery.charge == 71 and .devices[0].connectivity.type == "5G"' <<<"$status" >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" ring abc123 >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" clipboard abc123 >/dev/null
+PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" share abc123 "hello phone" >/dev/null
+PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" share abc123 "https://omalink.app" >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss abc123 notification-1 >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" reply abc123 7 "Test reply" >/dev/null
 conversations="$(PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" conversations abc123)"

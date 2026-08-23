@@ -61,6 +61,14 @@ Item {
     actionProcess.running = true
   }
 
+  function shareText(deviceId, value) {
+    if (!deviceId || !value || actionProcess.running) return
+    actionStatus = "Sending to phone…"
+    actionSuccess = "Sent to phone"
+    actionProcess.command = [helperPath, "share", String(deviceId), String(value)]
+    actionProcess.running = true
+  }
+
   function dismissNotification(deviceId, notificationId) {
     if (!deviceId || !notificationId || actionProcess.running) return
     actionStatus = "Dismissing notification…"

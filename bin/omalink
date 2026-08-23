@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: omalink <status|ring|clipboard|dismiss|conversations|messages|reply> [arguments]" >&2
+  echo "Usage: omalink <status|ring|clipboard|share|dismiss|conversations|messages|reply> [arguments]" >&2
   exit 2
 }
 
@@ -123,6 +123,20 @@ send_clipboard() {
   kdeconnect-cli --device "$device_id" --send-clipboard
 }
 
+share_text() {
+  local device_id="${1:-}" value="${2:-}"
+  [[ $device_id =~ ^[A-Za-z0-9]+$ && -n $value ]] || usage
+  command -v kdeconnect-cli >/dev/null 2>&1 || {
+    echo "KDE Connect is not installed" >&2
+    exit 1
+  }
+  if [[ $value =~ ^https?:// ]]; then
+    kdeconnect-cli --device "$device_id" --share "$value"
+  else
+    kdeconnect-cli --device "$device_id" --share-text "$value"
+  fi
+}
+
 dismiss_notification() {
   local device_id="${1:-}" notification_id="${2:-}"
   [[ $device_id =~ ^[A-Za-z0-9]+$ && $notification_id =~ ^[A-Za-z0-9._:-]+$ ]] || usage
@@ -238,6 +252,7 @@ case "${1:-}" in
   status) status ;;
   ring) shift; ring "${1:-}" ;;
   clipboard) shift; send_clipboard "${1:-}" ;;
+  share) shift; share_text "${1:-}" "${2:-}" ;;
   dismiss) shift; dismiss_notification "${1:-}" "${2:-}" ;;
   conversations) shift; conversations "${1:-}" ;;
   messages) shift; messages "${1:-}" "${2:-}" ;;

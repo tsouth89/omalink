@@ -16,6 +16,8 @@ Panel {
   readonly property color iconColor: phone.connected ? foreground : dim
   readonly property var notifications: phone.devices.length > 0 && Array.isArray(phone.devices[0].notifications)
     ? Model.visibleNotifications(phone.devices[0].notifications) : []
+  property string shareDeviceId: ""
+  property string shareDeviceName: ""
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -170,6 +172,69 @@ Panel {
               bordered: true
               onClicked: phone.ring(modelData.id)
             }
+
+            Button {
+              iconText: "󰌷"
+              tooltipText: "Send text or link"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              bordered: true
+              onClicked: {
+                root.shareDeviceId = modelData.id
+                root.shareDeviceName = modelData.name
+                shareField.text = ""
+                Qt.callLater(function() { shareField.forceActiveFocus() })
+              }
+            }
+          }
+        }
+      }
+
+      ColumnLayout {
+        visible: root.shareDeviceId !== ""
+        Layout.fillWidth: true
+        spacing: Style.space(6)
+
+        Text {
+          text: "Send text or link to " + root.shareDeviceName
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        RowLayout {
+          Layout.fillWidth: true
+          spacing: Style.space(8)
+
+          TextField {
+            id: shareField
+            Layout.fillWidth: true
+            placeholderText: "Text or https://…"
+            foreground: root.foreground
+            font.family: root.fontFamily
+            onAccepted: if (text.trim() !== "") {
+              phone.shareText(root.shareDeviceId, text.trim())
+              root.shareDeviceId = ""
+            }
+          }
+
+          Button {
+            text: "Send"
+            enabled: shareField.text.trim() !== ""
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            bordered: true
+            onClicked: {
+              phone.shareText(root.shareDeviceId, shareField.text.trim())
+              root.shareDeviceId = ""
+            }
+          }
+
+          Button {
+            text: "Cancel"
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            onClicked: root.shareDeviceId = ""
           }
         }
       }
