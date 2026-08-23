@@ -26,6 +26,8 @@ Item {
   property var pendingOutgoing: null
   property int pendingSyncAttempts: 0
   property var messages: []
+  property var messageCache: ({})
+  property string loadingThreadId: ""
   property bool sending: false
   property string pendingReply: ""
   property string pendingThreadId: ""
@@ -70,6 +72,8 @@ Item {
     pendingSyncAttempts = 0
     refreshAfterNewMessage.stop()
     messages = []
+    messageCache = ({})
+    loadingThreadId = ""
     searchText = ""
     if (!sending) {
       pendingReply = ""
@@ -103,18 +107,29 @@ Item {
 
   function openThread(conversation) {
     if (!conversation || threadProcess.running) return
+    var threadId = String(conversation.threadId)
     var changingThread = !selectedConversation
-      || String(selectedConversation.threadId) !== String(conversation.threadId)
+      || String(selectedConversation.threadId) !== threadId
     selectedConversation = conversation
-    if (changingThread) messages = []
+    if (changingThread) messages = messageCache[threadId] || []
     if (pendingOutgoing
         && (String(conversation.threadId) === String(pendingOutgoing.threadId)
           || Model.conversationMatchesNumber(conversation, pendingOutgoing.number)))
-      messages = Model.mergePendingOutgoing(messages, pendingOutgoing).messages
+      setThreadMessages(threadId, Model.mergePendingOutgoing(
+        messages, pendingOutgoing).messages)
     loading = true
+    loadingThreadId = threadId
     error = ""
-    threadProcess.command = [helperPath, "messages", deviceId, String(conversation.threadId)]
+    threadProcess.command = [helperPath, "messages", deviceId, threadId]
     threadProcess.running = true
+  }
+
+  function setThreadMessages(threadId, nextMessages) {
+    messages = nextMessages
+    var updatedCache = {}
+    for (var key in messageCache) updatedCache[key] = messageCache[key]
+    updatedCache[String(threadId)] = nextMessages
+    messageCache = updatedCache
   }
 
   function showConversations() {
@@ -291,8 +306,8 @@ Item {
       }
       if (replyConversation
           && String(replyConversation.threadId) === root.pendingThreadId)
-        root.messages = Model.mergePendingOutgoing(
-          root.messages, root.pendingOutgoing).messages
+        root.setThreadMessages(root.pendingThreadId, Model.mergePendingOutgoing(
+          root.messages, root.pendingOutgoing).messages)
       root.conversations = Model.updateConversationAfterSend(
         root.conversations,
         root.pendingThreadId,
@@ -309,15 +324,18 @@ Item {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (!root.selectedConversation
+            || String(root.selectedConversation.threadId) !== root.loadingThreadId) return
         var fetched = Model.parseMessages(text)
+        if (fetched.length === 0 && root.messages.length > 0) return
         if (root.pendingOutgoing
             && (String(root.selectedConversation.threadId) === String(root.pendingOutgoing.threadId)
               || Model.conversationMatchesNumber(root.selectedConversation, root.pendingOutgoing.number))) {
           var merged = Model.mergePendingOutgoing(fetched, root.pendingOutgoing)
-          root.messages = merged.messages
+          root.setThreadMessages(root.loadingThreadId, merged.messages)
           if (merged.resolved) root.pendingOutgoing = null
         } else {
-          root.messages = fetched
+          root.setThreadMessages(root.loadingThreadId, fetched)
         }
       }
     }
