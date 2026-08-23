@@ -332,8 +332,10 @@ Item {
                 implicitHeight: messageColumn.implicitHeight + Style.space(16)
                 color: modelData.incoming
                   ? Style.selectedFillFor(root.foreground, Color.accent)
-                  : Color.accent
+                  : Color.menu.selectedBackground
                 radius: Style.cornerRadius
+                border.width: modelData.incoming ? 0 : 1
+                border.color: Color.menu.selectedText
 
                 ColumnLayout {
                   id: messageColumn
@@ -347,7 +349,7 @@ Item {
                     text: modelData.body !== ""
                       ? modelData.body
                       : (modelData.attachmentCount > 0 ? "Attachment" : "")
-                    color: root.foreground
+                    color: modelData.incoming ? root.foreground : Color.menu.selectedText
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.body
                     wrapMode: Text.Wrap
@@ -356,7 +358,7 @@ Item {
                   Text {
                     Layout.alignment: Qt.AlignRight
                     text: Model.relativeTime(modelData.timestamp, root.nowMs)
-                    color: root.dim
+                    color: modelData.incoming ? root.dim : Color.menu.selectedText
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
                   }
