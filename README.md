@@ -3,8 +3,9 @@
 Native Android phone integration for Omarchy, powered by KDE Connect.
 
 OmaLink is currently an early technical spike. The first slice adds a themed
-Omarchy bar panel that detects connected phones and can ring one. It does not
-yet install KDE Connect, change firewall rules, or provide messages.
+Omarchy bar panel with connected-phone status, battery and signal details,
+clipboard and ring actions, plus active Android notifications with remote
+dismissal. It does not yet install KDE Connect or provide messages.
 
 ## Development
 
@@ -31,10 +32,9 @@ symlinks.
 ## Near-term scope
 
 1. Guided installation, pairing, permissions, and firewall diagnostics
-2. Reliable device status, battery, and connectivity
-3. Ring, clipboard, and file actions
-4. Mirrored notifications and notification replies
-5. SMS and MMS conversations
+2. File sending
+3. Notification replies and event-driven refresh
+4. SMS and MMS conversations
 
 RCS is not in scope because KDE Connect does not expose it.
 

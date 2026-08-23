@@ -31,6 +31,7 @@ case "${*: -1}" in
   isCharging) printf '%s\n' 'b false' ;;
   cellularNetworkStrength) printf '%s\n' 'i 3' ;;
   cellularNetworkType) printf '%s\n' 's "5G"' ;;
+  dismiss) exit 0 ;;
   *) exit 1 ;;
 esac
 EOF
@@ -40,5 +41,10 @@ status="$(PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" status)"
 jq -e '.installed == true and (.devices | length) == 2 and .devices[0].name == "Pixel 9" and .devices[0].battery.charge == 71 and .devices[0].connectivity.type == "5G"' <<<"$status" >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" ring abc123 >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" clipboard abc123 >/dev/null
+PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss abc123 notification-1 >/dev/null
+if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss '../bad' notification-1 >/dev/null 2>&1; then
+  echo "invalid device id was accepted" >&2
+  exit 1
+fi
 
 echo "cli tests passed"

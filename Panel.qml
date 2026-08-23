@@ -164,7 +164,7 @@ Panel {
 
       Text {
         visible: root.notifications.length > 0
-        text: "PHONE NOTIFICATIONS"
+        text: "PHONE NOTIFICATIONS · " + root.notifications.length
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -173,7 +173,7 @@ Panel {
       }
 
       Repeater {
-        model: root.notifications
+        model: root.notifications.slice(0, 5)
 
         Rectangle {
           required property var modelData
@@ -187,6 +187,28 @@ Panel {
             anchors.fill: parent
             anchors.margins: Style.space(8)
             spacing: Style.space(8)
+
+            Item {
+              Layout.preferredWidth: Style.space(28)
+              Layout.preferredHeight: Style.space(28)
+
+              Image {
+                anchors.fill: parent
+                visible: modelData.iconPath !== ""
+                source: visible ? "file://" + modelData.iconPath : ""
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+              }
+
+              Text {
+                anchors.centerIn: parent
+                visible: modelData.iconPath === ""
+                text: "󰂚"
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.icon
+              }
+            }
 
             ColumnLayout {
               Layout.fillWidth: true
