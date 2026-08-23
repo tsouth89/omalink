@@ -32,7 +32,6 @@ assert.equal(model.filterContacts(contacts, "").length, 0)
 assert.deepEqual(model.parseConversations("not json"), [])
 assert.equal(model.parseConversations('[{"threadId":1}]').length, 1)
 assert.equal(model.parseMessages('[{"body":"Hello"}]')[0].body, "Hello")
-assert.deepEqual(model.appendSentMessage([], "Sent", 2000), [{ body: "Sent", timestamp: 2000, incoming: false, attachmentCount: 0 }])
 const updatedConversations = model.updateConversationAfterSend([
   { threadId: 1, preview: "Old", timestamp: 1000, incoming: true, unread: true },
   { threadId: 2, preview: "Other", timestamp: 1500 }

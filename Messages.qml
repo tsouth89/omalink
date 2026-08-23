@@ -281,9 +281,18 @@ Item {
         return
       }
       var sentAt = Date.now()
-      if (root.selectedConversation
-          && String(root.selectedConversation.threadId) === root.pendingThreadId)
-        root.messages = Model.appendSentMessage(root.messages, root.pendingReply, sentAt)
+      var replyConversation = root.selectedConversation
+      root.pendingOutgoing = {
+        number: replyConversation && replyConversation.addresses
+          ? String(replyConversation.addresses[0] || "") : "",
+        body: root.pendingReply,
+        timestamp: sentAt,
+        threadId: root.pendingThreadId
+      }
+      if (replyConversation
+          && String(replyConversation.threadId) === root.pendingThreadId)
+        root.messages = Model.mergePendingOutgoing(
+          root.messages, root.pendingOutgoing).messages
       root.conversations = Model.updateConversationAfterSend(
         root.conversations,
         root.pendingThreadId,

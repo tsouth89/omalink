@@ -96,16 +96,6 @@ function parseMessages(raw) {
   return parseConversations(raw)
 }
 
-function appendSentMessage(messages, body, timestamp) {
-  var current = Array.isArray(messages) ? messages : []
-  return current.concat([{
-    body: String(body || ""),
-    timestamp: Number(timestamp),
-    incoming: false,
-    attachmentCount: 0
-  }])
-}
-
 function updateConversationAfterSend(conversations, threadId, body, timestamp) {
   if (!Array.isArray(conversations)) return []
   var updated = null
@@ -256,7 +246,6 @@ if (typeof module !== "undefined") {
     filterContacts: filterContacts,
     parseConversations: parseConversations,
     parseMessages: parseMessages,
-    appendSentMessage: appendSentMessage,
     updateConversationAfterSend: updateConversationAfterSend,
     phoneKey: phoneKey,
     conversationMatchesNumber: conversationMatchesNumber,
