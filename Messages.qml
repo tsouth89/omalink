@@ -34,6 +34,7 @@ Item {
   property string pendingThreadId: ""
   property string searchText: ""
   property string pendingOpenTitle: ""
+  property string pendingOpenThreadId: ""
   property bool loading: false
   property string error: ""
   property var attachmentPaths: ({})
@@ -58,6 +59,8 @@ Item {
     try { payload = JSON.parse(String(payloadJson || "{}")) || {} } catch (parseError) { payload = {} }
     deviceId = String(payload.deviceId || "")
     pendingOpenTitle = String(payload.conversationHint || "")
+    pendingOpenThreadId = payload.threadId === undefined || payload.threadId === null
+      ? "" : String(payload.threadId)
     searchText = ""
     opened = true
     refreshContacts()
@@ -85,6 +88,7 @@ Item {
     loadingThreadId = ""
     searchText = ""
     pendingOpenTitle = ""
+    pendingOpenThreadId = ""
     attachmentPaths = ({})
     attachmentFetchUnique = ""
     attachmentFetchMode = ""
@@ -256,8 +260,11 @@ Item {
         } else {
           root.conversations = fetched
         }
-        if (root.pendingOpenTitle !== "") {
-          var target = Model.findConversationByTitle(root.conversations, root.pendingOpenTitle)
+        if (root.pendingOpenThreadId !== "" || root.pendingOpenTitle !== "") {
+          var target = Model.findConversationByThreadId(root.conversations, root.pendingOpenThreadId)
+          if (!target && root.pendingOpenTitle !== "")
+            target = Model.findConversationByTitle(root.conversations, root.pendingOpenTitle)
+          root.pendingOpenThreadId = ""
           root.pendingOpenTitle = ""
           if (target && !root.selectedConversation && !root.composing) root.openThread(target)
         }

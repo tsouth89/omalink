@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls as Controls
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
@@ -21,11 +22,44 @@ Panel {
   property string shareDeviceName: ""
   property string notifReplyId: ""
   property string notifReplyTitle: ""
+  property var unreadConversations: []
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  onOpenedChanged: if (opened) phone.refresh()
+  onOpenedChanged: {
+    if (opened) {
+      phone.refresh()
+      refreshUnread()
+    }
+  }
+
+  function refreshUnread() {
+    if (phone.devices.length === 0 || unreadProcess.running) return
+    unreadProcess.command = [phone.helperPath, "conversations", phone.devices[0].id]
+    unreadProcess.running = true
+  }
+
+  function openMessages(payload) {
+    payload.deviceId = phone.devices[0].id
+    root.close()
+    bar.shell.summon("omalink.phone", JSON.stringify(payload))
+  }
+
+  Process {
+    id: unreadProcess
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.unreadConversations = Model.unreadConversations(Model.parseConversations(text))
+    }
+  }
+
+  Timer {
+    interval: 10000
+    repeat: true
+    running: root.opened
+    onTriggered: root.refreshUnread()
+  }
 
   Service {
     id: phone
@@ -253,6 +287,85 @@ Panel {
         }
       }
 
+      Text {
+        visible: root.unreadConversations.length > 0
+        text: "UNREAD MESSAGES · " + root.unreadConversations.length
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        font.letterSpacing: 1.2
+      }
+
+      ListView {
+        visible: root.unreadConversations.length > 0
+        Layout.fillWidth: true
+        Layout.preferredHeight: Math.min(contentHeight, Style.space(150))
+        clip: true
+        spacing: Style.space(6)
+        boundsBehavior: Flickable.StopAtBounds
+        interactive: contentHeight > height
+        model: root.unreadConversations
+
+        Controls.ScrollBar.vertical: Controls.ScrollBar { policy: Controls.ScrollBar.AsNeeded }
+
+        delegate: Rectangle {
+          required property var modelData
+          width: ListView.view.width
+          implicitHeight: unreadRow.implicitHeight + Style.space(16)
+          color: Style.selectedFillFor(root.foreground, Color.accent)
+          radius: Style.cornerRadius
+
+          MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.openMessages({ threadId: modelData.threadId })
+          }
+
+          RowLayout {
+            id: unreadRow
+            anchors.fill: parent
+            anchors.margins: Style.space(8)
+            spacing: Style.space(8)
+
+            Text {
+              text: "󰍩"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.icon
+            }
+
+            ColumnLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(2)
+
+              Text {
+                Layout.fillWidth: true
+                text: Model.conversationTitle(modelData)
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                elide: Text.ElideRight
+              }
+
+              Text {
+                visible: text !== ""
+                Layout.fillWidth: true
+                text: Model.previewText(modelData)
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.Wrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+              }
+            }
+          }
+        }
+      }
+
       RowLayout {
         visible: root.notifications.length > 0
         Layout.fillWidth: true
@@ -299,14 +412,7 @@ Panel {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              var deviceId = phone.devices[0].id
-              root.close()
-              bar.shell.summon("omalink.phone", JSON.stringify({
-                deviceId: deviceId,
-                conversationHint: modelData.title
-              }))
-            }
+            onClicked: root.openMessages({ conversationHint: modelData.title })
           }
 
           RowLayout {
@@ -353,7 +459,7 @@ Panel {
 
               Text {
                 Layout.fillWidth: true
-                text: modelData.title
+                text: Model.notificationDisplayTitle(modelData)
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
@@ -364,7 +470,7 @@ Panel {
               Text {
                 visible: text !== ""
                 Layout.fillWidth: true
-                text: modelData.text
+                text: Model.notificationDisplayText(modelData)
                 color: root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
@@ -466,11 +572,7 @@ Panel {
         foreground: root.foreground
         fontFamily: root.fontFamily
         bordered: true
-        onClicked: {
-          var deviceId = phone.devices[0].id
-          root.close()
-          bar.shell.summon("omalink.phone", JSON.stringify({ deviceId: deviceId }))
-        }
+        onClicked: root.openMessages({})
       }
     }
   }

@@ -244,6 +244,43 @@ function previewText(conversation) {
   return ""
 }
 
+function redactedNotification(notification) {
+  var text = String((notification && notification.text) || "")
+  return text.indexOf("Sensitive notification content hidden") === 0
+}
+
+function notificationDisplayTitle(notification) {
+  if (!notification) return ""
+  var title = String(notification.title || "")
+  if (title !== "") return title
+  if (notification.isConversation) return "New message"
+  return String(notification.appName || "")
+}
+
+function notificationDisplayText(notification) {
+  if (!notification) return ""
+  if (redactedNotification(notification))
+    return notification.isConversation ? "" : "Content hidden by the phone"
+  return String(notification.text || "")
+}
+
+function unreadConversations(conversations) {
+  if (!Array.isArray(conversations)) return []
+  return conversations.filter(function(conversation) {
+    return conversation && conversation.unread === true
+  })
+}
+
+function findConversationByThreadId(conversations, threadId) {
+  if (!Array.isArray(conversations)) return null
+  var needle = String(threadId)
+  if (needle === "") return null
+  for (var i = 0; i < conversations.length; i++) {
+    if (conversations[i] && String(conversations[i].threadId) === needle) return conversations[i]
+  }
+  return null
+}
+
 function findConversationByTitle(conversations, title) {
   if (!Array.isArray(conversations)) return null
   var needle = String(title || "").trim().toLowerCase()
@@ -310,6 +347,11 @@ if (typeof module !== "undefined") {
     attachmentLabel: attachmentLabel,
     thumbnailUri: thumbnailUri,
     previewText: previewText,
+    redactedNotification: redactedNotification,
+    notificationDisplayTitle: notificationDisplayTitle,
+    notificationDisplayText: notificationDisplayText,
+    unreadConversations: unreadConversations,
+    findConversationByThreadId: findConversationByThreadId,
     findConversationByTitle: findConversationByTitle,
     conversationTitle: conversationTitle,
     relativeTime: relativeTime
