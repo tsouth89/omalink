@@ -38,7 +38,7 @@ chmod +x "$temp_dir/kdeconnect-cli"
 
 cat >"$temp_dir/busctl" <<'EOF'
 #!/usr/bin/env bash
-if [[ " $* " == *" replyToConversation "* ]]; then
+if [[ " $* " == *" replyToConversation "* || " $* " == *" sendReply "* ]]; then
   exit 0
 fi
 case "${*: -1}" in
@@ -79,6 +79,7 @@ PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss abc123 notification
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss-all abc123 >/dev/null
 [[ "$(grep -c '/notifications/notif\.' "$temp_dir/busctl.log")" == 2 ]]
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" reply abc123 7 "Test reply" >/dev/null
+PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" notify-reply abc123 reply-uuid.1 "Quick reply" >/dev/null
 PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" sms abc123 +15550000001 "New message" >/dev/null
 contacts="$(XDG_DATA_HOME="$temp_dir/data" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" contacts abc123)"
 jq -e 'length == 1 and .[0].name == "Alex Rivera" and .[0].number == "+15550000001"' <<<"$contacts" >/dev/null
@@ -90,6 +91,10 @@ if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss '../bad' notific
 fi
 if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" reply abc123 bad "Test reply" >/dev/null 2>&1; then
   echo "invalid thread id was accepted" >&2
+  exit 1
+fi
+if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" notify-reply abc123 'bad reply;id' "Quick reply" >/dev/null 2>&1; then
+  echo "invalid reply id was accepted" >&2
   exit 1
 fi
 if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" sms abc123 'bad;number' "Test" >/dev/null 2>&1; then

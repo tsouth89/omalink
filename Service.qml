@@ -85,6 +85,14 @@ Item {
     actionProcess.running = true
   }
 
+  function replyToNotification(deviceId, replyId, message) {
+    if (!deviceId || !replyId || !message || actionProcess.running) return
+    actionStatus = "Sending reply…"
+    actionSuccess = "Reply sent"
+    actionProcess.command = [helperPath, "notify-reply", String(deviceId), String(replyId), String(message)]
+    actionProcess.running = true
+  }
+
   function openPairing() {
     if (installed) Quickshell.execDetached(["kdeconnect-app"])
   }

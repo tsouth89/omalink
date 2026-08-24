@@ -19,6 +19,8 @@ Panel {
     ? Model.visibleNotifications(phone.devices[0].notifications) : []
   property string shareDeviceId: ""
   property string shareDeviceName: ""
+  property string notifReplyId: ""
+  property string notifReplyTitle: ""
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -41,6 +43,17 @@ Panel {
       if (buttonCode === Qt.RightButton) phone.refresh()
       else root.toggle()
     }
+  }
+
+  Rectangle {
+    visible: root.notifications.length > 0
+    anchors.top: button.top
+    anchors.right: button.right
+    anchors.topMargin: Style.space(2)
+    width: Style.space(6)
+    height: width
+    radius: width / 2
+    color: Color.accent
   }
 
   KeyboardPanel {
@@ -361,6 +374,19 @@ Panel {
               }
             }
 
+            Button {
+              visible: modelData.replyable
+              text: "Reply"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onClicked: {
+                root.notifReplyId = modelData.replyId
+                root.notifReplyTitle = modelData.title !== "" ? modelData.title : modelData.appName
+                notifReplyField.text = ""
+                Qt.callLater(function() { notifReplyField.forceActiveFocus() })
+              }
+            }
+
             PanelActionButton {
               visible: modelData.dismissable
               iconText: "󰅖"
@@ -369,6 +395,55 @@ Panel {
               fontFamily: root.fontFamily
               onClicked: phone.dismissNotification(phone.devices[0].id, modelData.id)
             }
+          }
+        }
+      }
+
+      ColumnLayout {
+        visible: root.notifReplyId !== ""
+        Layout.fillWidth: true
+        spacing: Style.space(6)
+
+        Text {
+          text: "Reply to " + root.notifReplyTitle
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        RowLayout {
+          Layout.fillWidth: true
+          spacing: Style.space(8)
+
+          TextField {
+            id: notifReplyField
+            Layout.fillWidth: true
+            placeholderText: "Reply"
+            foreground: root.foreground
+            font.family: root.fontFamily
+            onAccepted: if (text.trim() !== "") {
+              phone.replyToNotification(phone.devices[0].id, root.notifReplyId, text.trim())
+              root.notifReplyId = ""
+            }
+          }
+
+          Button {
+            text: "Send"
+            enabled: notifReplyField.text.trim() !== ""
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            bordered: true
+            onClicked: {
+              phone.replyToNotification(phone.devices[0].id, root.notifReplyId, notifReplyField.text.trim())
+              root.notifReplyId = ""
+            }
+          }
+
+          Button {
+            text: "Cancel"
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            onClicked: root.notifReplyId = ""
           }
         }
       }

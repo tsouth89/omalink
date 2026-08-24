@@ -9,9 +9,11 @@ account or cloud relay.
 ## Features
 
 - Connected phone, battery, charging state, network type, and signal strength
-- Android notifications with dismissal on the phone
+- Android notifications with dismissal on the phone, one by one or all at once
+- Quick reply to notifications from messaging apps
+- Open a text's conversation straight from its notification
 - SMS conversation list with contact names, search, and unread state
-- Read conversations, send replies, and start new messages
+- Read conversations, copy message text, send replies, and start new messages
 - Send the desktop clipboard to the phone
 - Send text or links to the phone
 - Ring a misplaced phone

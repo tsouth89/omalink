@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: omalink <status|ring|clipboard|share|dismiss|dismiss-all|contacts|conversations|messages|reply|sms> [arguments]" >&2
+  echo "Usage: omalink <status|ring|clipboard|share|dismiss|dismiss-all|notify-reply|contacts|conversations|messages|reply|sms> [arguments]" >&2
   exit 2
 }
 
@@ -74,7 +74,7 @@ notification_json() {
       --argjson dismissable "${dismissable:-false}" \
       --arg replyId "$reply_id" \
       --argjson isConversation "${is_conversation:-false}" \
-      '{id: $id, appName: $appName, title: $title, text: $text, iconPath: $iconPath, dismissable: $dismissable, replyable: ($replyId != ""), isConversation: $isConversation}')")
+      '{id: $id, appName: $appName, title: $title, text: $text, iconPath: $iconPath, dismissable: $dismissable, replyId: $replyId, replyable: ($replyId != ""), isConversation: $isConversation}')")
   done < <(jq -r '.data[0][]?' <<<"$raw" 2>/dev/null)
 
   if (( ${#notifications[@]} == 0 )); then
@@ -143,6 +143,14 @@ dismiss_notification() {
   busctl --user call org.kde.kdeconnect \
     "/modules/kdeconnect/devices/$device_id/notifications/$notification_id" \
     org.kde.kdeconnect.device.notifications.notification dismiss >/dev/null
+}
+
+notify_reply() {
+  local device_id="${1:-}" reply_id="${2:-}" message="${3:-}"
+  [[ $device_id =~ ^[A-Za-z0-9]+$ && $reply_id =~ ^[A-Za-z0-9._:-]+$ && -n $message ]] || usage
+  busctl --user call org.kde.kdeconnect \
+    "/modules/kdeconnect/devices/$device_id/notifications" \
+    org.kde.kdeconnect.device.notifications sendReply ss "$reply_id" "$message" >/dev/null
 }
 
 dismiss_all_notifications() {
@@ -293,6 +301,7 @@ case "${1:-}" in
   share) shift; share_text "${1:-}" "${2:-}" ;;
   dismiss) shift; dismiss_notification "${1:-}" "${2:-}" ;;
   dismiss-all) shift; dismiss_all_notifications "${1:-}" ;;
+  notify-reply) shift; notify_reply "${1:-}" "${2:-}" "${3:-}" ;;
   contacts) shift; contacts "${1:-}" ;;
   conversations) shift; conversations "${1:-}" ;;
   messages) shift; messages "${1:-}" "${2:-}" ;;
