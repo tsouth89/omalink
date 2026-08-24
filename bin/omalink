@@ -292,19 +292,33 @@ conversations() {
   device_path="/modules/kdeconnect/devices/$device_id"
   contacts="$(contact_records_json "$device_id")"
 
-  raw="$(active_conversations_raw "$device_path")"
-  if [[ "$(jq '.data[0] | length' <<<"$raw")" == 0 ]]; then
-    # A freshly started daemon has an empty conversation cache. Ask the phone
-    # for the thread list and wait for the count to settle.
-    busctl --user call org.kde.kdeconnect "$device_path" \
-      org.kde.kdeconnect.device.conversations requestAllConversationThreads >/dev/null
+  # A freshly started daemon has an empty conversation cache, and until the
+  # phone reconnects the conversations interface is missing entirely. Wait
+  # for the interface, ask the phone for the thread list once it is there,
+  # and keep polling until the conversation count settles.
+  raw="$(active_conversations_raw "$device_path" 2>/dev/null || true)"
+  count=0
+  [[ -z $raw ]] || count="$(jq '.data[0] | length' <<<"$raw")"
+  if (( count == 0 )); then
+    local requested=0
     for attempt in $(seq 1 20); do
+      if [[ -n $raw && $requested == 0 ]]; then
+        busctl --user call org.kde.kdeconnect "$device_path" \
+          org.kde.kdeconnect.device.conversations requestAllConversationThreads \
+          >/dev/null 2>&1 || true
+        requested=1
+      fi
       sleep 0.5
-      raw="$(active_conversations_raw "$device_path")"
-      count="$(jq '.data[0] | length' <<<"$raw")"
+      raw="$(active_conversations_raw "$device_path" 2>/dev/null || true)"
+      count=0
+      [[ -z $raw ]] || count="$(jq '.data[0] | length' <<<"$raw")"
       if (( count > 0 && count == last_count )); then break; fi
       last_count=$count
     done
+  fi
+  if [[ -z $raw ]]; then
+    echo "The phone connection is not ready yet" >&2
+    exit 1
   fi
   jq -c --argjson contacts "$contacts" '
     def number_key:
