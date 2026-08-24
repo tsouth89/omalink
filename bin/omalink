@@ -196,6 +196,11 @@ handle_posted() {
 
 watch() {
   command -v dbus-monitor >/dev/null 2>&1 || { echo "dbus-monitor is required" >&2; exit 1; }
+  # One watcher only, even with a Service instance per bar: the first holds
+  # the lock, the rest block here as standbys and take over if it dies. Child
+  # processes must not inherit the lock fd (9>&-) or a stray would keep it.
+  exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omalink-watch.lock"
+  flock 9
   ensure_quiet_daemon_popups || true
   local line device_id="" notification_id
   while IFS= read -r line; do
@@ -208,13 +213,13 @@ watch() {
         [[ -n $device_id ]] || continue
         notification_id="${line#*string \"}"
         notification_id="${notification_id%\"*}"
-        handle_posted "$device_id" "$notification_id" &
+        handle_posted "$device_id" "$notification_id" 9>&- &
         printf 'posted %s %s\n' "$device_id" "$notification_id"
         device_id=""
         ;;
     esac
   done < <(dbus-monitor --session \
-    "type='signal',interface='org.kde.kdeconnect.device.notifications',member='notificationPosted'" 2>/dev/null)
+    "type='signal',interface='org.kde.kdeconnect.device.notifications',member='notificationPosted'" 2>/dev/null 9>&-)
   wait
 }
 
