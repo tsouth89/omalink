@@ -125,6 +125,9 @@ Item {
 
   function openThread(conversation) {
     if (!conversation || threadProcess.running) return
+    if (conversation.unread && conversation.threadId !== null && conversation.threadId !== undefined)
+      Quickshell.execDetached([helperPath, "mark-seen",
+        String(conversation.threadId), String(Math.round(Number(conversation.timestamp) || 0))])
     var threadId = String(conversation.threadId)
     var changingThread = !selectedConversation
       || String(selectedConversation.threadId) !== threadId

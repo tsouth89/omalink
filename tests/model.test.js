@@ -100,6 +100,22 @@ assert.equal(model.notificationDisplayText(redacted), "")
 assert.equal(model.notificationDisplayText({ text: "Sensitive notification content hidden", appName: "Gmail" }), "Content hidden by the phone")
 assert.equal(model.notificationDisplayText({ text: "Hi" }), "Hi")
 assert.equal(model.unreadConversations([{ unread: true }, { unread: false }, {}]).length, 1)
+assert.deepEqual(model.parseSeen("not json"), {})
+assert.deepEqual(model.parseSeen("[1,2]"), {})
+assert.equal(model.parseSeen('{"7":2000}')["7"], 2000)
+const unseen = model.filterUnseenUnread([
+  { threadId: 7, unread: true, timestamp: 3000 },
+  { threadId: 8, unread: true, timestamp: 1000 },
+  { threadId: 9, unread: false, timestamp: 5000 }
+], { "8": 2000 })
+assert.equal(unseen.length, 1)
+assert.equal(unseen[0].threadId, 7)
+assert.equal(model.filterUnseenUnread([
+  { threadId: 7, unread: true, timestamp: 3000 }
+], { "7": 2500 }).length, 1)
+assert.equal(model.filterUnseenUnread([
+  { threadId: 7, unread: true, timestamp: 3000 }
+], { "7": 3000 }).length, 0)
 assert.equal(model.findConversationByThreadId([{ threadId: 7 }, { threadId: 9 }], "9").threadId, 9)
 assert.equal(model.findConversationByThreadId([{ threadId: 7 }], 8), null)
 assert.equal(model.findConversationByTitle(searchableConversations, "alex rivera").addresses[0], "+15550000001")

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: omalink <status|watch|ring|clipboard|share|dismiss|dismiss-all|notify-reply|contacts|conversations|messages|attachment|attachment-save|reply|sms> [arguments]" >&2
+  echo "Usage: omalink <status|watch|ring|clipboard|share|dismiss|dismiss-all|notify-reply|contacts|conversations|messages|attachment|attachment-save|reply|sms|seen|mark-seen> [arguments]" >&2
   exit 2
 }
 
@@ -461,6 +461,44 @@ reply() {
     xsav "$thread_id" "$message" 0 >/dev/null
 }
 
+# KDE Connect has no way to mark a conversation read on the phone, so OmaLink
+# keeps its own "seen" state: threadId -> last seen message timestamp. A
+# conversation counts as unread only while the phone flags it unread AND its
+# latest message is newer than the seen timestamp. Only ids and timestamps are
+# stored, never message content.
+seen_file() {
+  printf '%s/omalink/seen.json' "${XDG_STATE_HOME:-$HOME/.local/state}"
+}
+
+seen() {
+  local file
+  file="$(seen_file)"
+  if [[ -f $file ]] && jq -e 'type == "object"' "$file" >/dev/null 2>&1; then
+    jq -c '.' "$file"
+  else
+    printf '{}\n'
+  fi
+}
+
+mark_seen() {
+  local file updates="{}" current
+  (( $# >= 2 && $# % 2 == 0 )) || usage
+  while (( $# >= 2 )); do
+    [[ $1 =~ ^[0-9]+$ && $2 =~ ^[0-9]+$ ]] || usage
+    updates="$(jq -c --arg id "$1" --argjson ts "$2" '.[$id] = $ts' <<<"$updates")"
+    shift 2
+  done
+  file="$(seen_file)"
+  mkdir -p "$(dirname "$file")"
+  (
+    flock 9
+    current="$(seen)"
+    jq -cn --argjson current "$current" --argjson updates "$updates" \
+      '$current * $updates' >"$file.tmp"
+    mv "$file.tmp" "$file"
+  ) 9>"$file.lock"
+}
+
 send_sms() {
   local device_id="${1:-}" destination="${2:-}" message="${3:-}" digits
   digits="${destination//[^0-9]/}"
@@ -484,5 +522,7 @@ case "${1:-}" in
   attachment-save) shift; attachment_save "${1:-}" ;;
   reply) shift; reply "${1:-}" "${2:-}" "${3:-}" ;;
   sms) shift; send_sms "${1:-}" "${2:-}" "${3:-}" ;;
+  seen) seen ;;
+  mark-seen) shift; mark_seen "$@" ;;
   *) usage ;;
 esac

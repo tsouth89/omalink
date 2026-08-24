@@ -146,6 +146,20 @@ if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" attachment abc123 notanu
   exit 1
 fi
 
+[[ "$(XDG_STATE_HOME="$temp_dir/state" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" seen)" == "{}" ]]
+XDG_STATE_HOME="$temp_dir/state" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" mark-seen 7 2000 9 1500
+XDG_STATE_HOME="$temp_dir/state" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" mark-seen 7 2500
+jq -e '."7" == 2500 and ."9" == 1500' \
+  <<<"$(XDG_STATE_HOME="$temp_dir/state" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" seen)" >/dev/null
+if XDG_STATE_HOME="$temp_dir/state" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" mark-seen 7 >/dev/null 2>&1; then
+  echo "odd mark-seen arguments were accepted" >&2
+  exit 1
+fi
+if XDG_STATE_HOME="$temp_dir/state" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" mark-seen abc 100 >/dev/null 2>&1; then
+  echo "invalid mark-seen thread id was accepted" >&2
+  exit 1
+fi
+
 watch_out="$(XDG_RUNTIME_DIR="$temp_dir" XDG_CONFIG_HOME="$temp_dir/xdg" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" watch)"
 [[ $watch_out == "posted abc123 notif.9" ]]
 grep -q '^\[Event/notification\]$' "$temp_dir/xdg/kdeconnect.notifyrc"

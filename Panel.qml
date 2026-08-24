@@ -22,7 +22,9 @@ Panel {
   property string shareDeviceName: ""
   property string notifReplyId: ""
   property string notifReplyTitle: ""
-  property var unreadConversations: []
+  property var unreadRaw: []
+  property var seenMap: ({})
+  readonly property var unreadConversations: Model.filterUnseenUnread(unreadRaw, seenMap)
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -30,6 +32,7 @@ Panel {
   onOpenedChanged: {
     if (opened) {
       phone.refresh()
+      refreshSeen()
       refreshUnread()
     }
   }
@@ -38,6 +41,31 @@ Panel {
     if (phone.devices.length === 0 || unreadProcess.running) return
     unreadProcess.command = [phone.helperPath, "conversations", phone.devices[0].id]
     unreadProcess.running = true
+  }
+
+  function refreshSeen() {
+    if (seenProcess.running) return
+    seenProcess.command = [phone.helperPath, "seen"]
+    seenProcess.running = true
+  }
+
+  function markSeenEntries(conversations) {
+    var args = [phone.helperPath, "mark-seen"]
+    var updated = {}
+    for (var key in seenMap) updated[key] = seenMap[key]
+    var found = false
+    for (var i = 0; i < conversations.length; i++) {
+      var conversation = conversations[i]
+      if (!conversation || conversation.threadId === null || conversation.threadId === undefined) continue
+      var timestamp = Math.round(Number(conversation.timestamp) || 0)
+      args.push(String(conversation.threadId))
+      args.push(String(timestamp))
+      updated[String(conversation.threadId)] = timestamp
+      found = true
+    }
+    if (!found) return
+    seenMap = updated
+    Quickshell.execDetached(args)
   }
 
   function openMessages(payload) {
@@ -50,7 +78,15 @@ Panel {
     id: unreadProcess
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.unreadConversations = Model.unreadConversations(Model.parseConversations(text))
+      onStreamFinished: root.unreadRaw = Model.unreadConversations(Model.parseConversations(text))
+    }
+  }
+
+  Process {
+    id: seenProcess
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.seenMap = Model.parseSeen(text)
     }
   }
 
@@ -287,14 +323,26 @@ Panel {
         }
       }
 
-      Text {
+      RowLayout {
         visible: root.unreadConversations.length > 0
-        text: "UNREAD MESSAGES · " + root.unreadConversations.length
-        color: root.dim
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        font.bold: true
-        font.letterSpacing: 1.2
+        Layout.fillWidth: true
+
+        Text {
+          Layout.fillWidth: true
+          text: "UNREAD MESSAGES · " + root.unreadConversations.length
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+          font.letterSpacing: 1.2
+        }
+
+        Button {
+          text: "Clear"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          onClicked: root.markSeenEntries(root.unreadConversations)
+        }
       }
 
       ListView {
@@ -320,7 +368,10 @@ Panel {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: root.openMessages({ threadId: modelData.threadId })
+            onClicked: {
+              root.markSeenEntries([modelData])
+              root.openMessages({ threadId: modelData.threadId })
+            }
           }
 
           RowLayout {

@@ -14,6 +14,9 @@ account or cloud relay.
   contents always hidden in popups (read them in the panel instead)
 - Unread text messages readable directly in the panel, even when the phone
   redacts notification contents; click one to open its conversation
+- Clear unread messages from the panel (KDE Connect cannot mark conversations
+  read on the phone, so clearing is local: a cleared thread returns only when
+  a new message arrives)
 - Quick reply to notifications from messaging apps
 - Open a text's conversation straight from its notification
 - SMS conversation list with contact names, search, and unread state

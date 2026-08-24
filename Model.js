@@ -271,6 +271,25 @@ function unreadConversations(conversations) {
   })
 }
 
+function parseSeen(raw) {
+  try {
+    var parsed = JSON.parse(String(raw || "{}"))
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}
+  } catch (error) {
+    return {}
+  }
+}
+
+function filterUnseenUnread(conversations, seen) {
+  if (!Array.isArray(conversations)) return []
+  var map = seen && typeof seen === "object" ? seen : {}
+  return conversations.filter(function(conversation) {
+    if (!conversation || conversation.unread !== true) return false
+    var seenTs = Number(map[String(conversation.threadId)])
+    return !isFinite(seenTs) || Number(conversation.timestamp) > seenTs
+  })
+}
+
 function findConversationByThreadId(conversations, threadId) {
   if (!Array.isArray(conversations)) return null
   var needle = String(threadId)
@@ -351,6 +370,8 @@ if (typeof module !== "undefined") {
     notificationDisplayTitle: notificationDisplayTitle,
     notificationDisplayText: notificationDisplayText,
     unreadConversations: unreadConversations,
+    parseSeen: parseSeen,
+    filterUnseenUnread: filterUnseenUnread,
     findConversationByThreadId: findConversationByThreadId,
     findConversationByTitle: findConversationByTitle,
     conversationTitle: conversationTitle,
