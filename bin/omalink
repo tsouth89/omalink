@@ -281,14 +281,31 @@ contacts() {
   contact_records_json "$device_id"
 }
 
+active_conversations_raw() {
+  busctl --user --json=short call org.kde.kdeconnect "$1" \
+    org.kde.kdeconnect.device.conversations activeConversations
+}
+
 conversations() {
-  local device_id="${1:-}" device_path contacts raw
+  local device_id="${1:-}" device_path contacts raw attempt count last_count=-1
   [[ $device_id =~ ^[A-Za-z0-9]+$ ]] || usage
   device_path="/modules/kdeconnect/devices/$device_id"
   contacts="$(contact_records_json "$device_id")"
 
-  raw="$(busctl --user --json=short call org.kde.kdeconnect "$device_path" \
-    org.kde.kdeconnect.device.conversations activeConversations)"
+  raw="$(active_conversations_raw "$device_path")"
+  if [[ "$(jq '.data[0] | length' <<<"$raw")" == 0 ]]; then
+    # A freshly started daemon has an empty conversation cache. Ask the phone
+    # for the thread list and wait for the count to settle.
+    busctl --user call org.kde.kdeconnect "$device_path" \
+      org.kde.kdeconnect.device.conversations requestAllConversationThreads >/dev/null
+    for attempt in $(seq 1 20); do
+      sleep 0.5
+      raw="$(active_conversations_raw "$device_path")"
+      count="$(jq '.data[0] | length' <<<"$raw")"
+      if (( count > 0 && count == last_count )); then break; fi
+      last_count=$count
+    done
+  fi
   jq -c --argjson contacts "$contacts" '
     def number_key:
       gsub("[^0-9]"; "") | if length > 10 then .[-10:] else . end;

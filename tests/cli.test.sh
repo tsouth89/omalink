@@ -52,11 +52,16 @@ case "${*: -1}" in
   cellularNetworkStrength) printf '%s\n' 'i 3' ;;
   cellularNetworkType) printf '%s\n' 's "5G"' ;;
   dismiss) echo "dismiss $*" >>"$0.log"; exit 0 ;;
+  requestAllConversationThreads) : >"$0.requested"; exit 0 ;;
   activeNotifications)
     printf '%s\n' '{"type":"as","data":[["notif.1","notif.2"]]}'
     ;;
   activeConversations)
-    printf '%s\n' '{"type":"av","data":[[{"type":"(isa(s)xiixixa(xsss))","data":[1,"Newest",[["+15550000001"]],2000,1,0,7,10,-1,[[42,"image/jpeg","VGh1bWI=","PART_1.jpeg"]]]},{"type":"(isa(s)xiixixa(xsss))","data":[1,"Older",[["+15550000002"]],1000,2,1,8,11,-1,[]]}]]}'
+    if [[ -n ${COLD_CONVERSATION_CACHE:-} && ! -e "$0.requested" ]]; then
+      printf '%s\n' '{"type":"av","data":[[]]}'
+    else
+      printf '%s\n' '{"type":"av","data":[[{"type":"(isa(s)xiixixa(xsss))","data":[1,"Newest",[["+15550000001"]],2000,1,0,7,10,-1,[[42,"image/jpeg","VGh1bWI=","PART_1.jpeg"]]]},{"type":"(isa(s)xiixixa(xsss))","data":[1,"Older",[["+15550000002"]],1000,2,1,8,11,-1,[]]}]]}'
+    fi
     ;;
   *) exit 1 ;;
 esac
@@ -111,6 +116,10 @@ jq -e 'length == 1 and .[0].name == "Alex Rivera" and .[0].number == "+155500000
 conversations="$(XDG_DATA_HOME="$temp_dir/data" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" conversations abc123)"
 jq -e 'length == 2 and .[0].threadId == 7 and .[0].unread == true and .[0].names[0] == "Alex Rivera" and .[1].incoming == false' <<<"$conversations" >/dev/null
 jq -e '.[0].attachments[0] == {partId: 42, mimeType: "image/jpeg", thumbnail: "VGh1bWI=", unique: "PART_1.jpeg"} and .[1].attachments == []' <<<"$conversations" >/dev/null
+rm -f "$temp_dir/busctl.requested"
+cold_conversations="$(COLD_CONVERSATION_CACHE=1 XDG_DATA_HOME="$temp_dir/data" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" conversations abc123)"
+jq -e 'length == 2 and .[0].threadId == 7' <<<"$cold_conversations" >/dev/null
+[[ -e "$temp_dir/busctl.requested" ]]
 printf 'jpegbytes' >"$temp_dir/attachment-full.jpg"
 attachment_path="$(PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" attachment abc123 42 PART_1.jpeg)"
 [[ $attachment_path == "$temp_dir/attachment-full.jpg" ]]
@@ -137,7 +146,7 @@ if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" attachment abc123 notanu
   exit 1
 fi
 
-watch_out="$(XDG_CONFIG_HOME="$temp_dir/xdg" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" watch)"
+watch_out="$(XDG_RUNTIME_DIR="$temp_dir" XDG_CONFIG_HOME="$temp_dir/xdg" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" watch)"
 [[ $watch_out == "posted abc123 notif.9" ]]
 grep -q '^\[Event/notification\]$' "$temp_dir/xdg/kdeconnect.notifyrc"
 grep -q '^Action=$' "$temp_dir/xdg/kdeconnect.notifyrc"
