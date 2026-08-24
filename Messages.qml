@@ -624,22 +624,36 @@ Item {
                 border.width: modelData.incoming ? 0 : 1
                 border.color: Color.menu.selectedText
 
+                MouseArea {
+                  anchors.fill: parent
+                  acceptedButtons: Qt.RightButton
+                  onClicked: {
+                    messageText.selectAll()
+                    messageText.copy()
+                    messageText.deselect()
+                  }
+                }
+
                 ColumnLayout {
                   id: messageColumn
                   anchors.fill: parent
                   anchors.margins: Style.space(8)
                   spacing: Style.space(4)
 
-                  Text {
+                  TextEdit {
                     id: messageText
                     Layout.fillWidth: true
+                    readOnly: true
+                    selectByMouse: true
                     text: modelData.body !== ""
                       ? modelData.body
                       : (modelData.attachmentCount > 0 ? "Attachment" : "")
                     color: modelData.incoming ? root.foreground : Color.menu.selectedText
+                    selectionColor: modelData.incoming ? Color.menu.selectedBackground : Color.popups.background
+                    selectedTextColor: modelData.incoming ? Color.menu.selectedText : root.foreground
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.body
-                    wrapMode: Text.Wrap
+                    wrapMode: TextEdit.Wrap
                   }
 
                   Text {
@@ -821,7 +835,7 @@ Item {
           Text {
             Layout.fillWidth: true
             text: root.selectedConversation
-              ? "Press Enter to send · R to refresh · Esc to go back"
+              ? "Enter to send · Right-click a message to copy it · R to refresh · Esc to go back"
               : root.composing
                 ? "Choose a synced contact or enter a phone number · Esc to cancel"
                 : root.filteredConversations.length + " of " + root.conversations.length
