@@ -10,7 +10,11 @@ import "Model.js" as Model
 Panel {
   id: root
   moduleName: "omalink.phone"
-  ipcTarget: "omalink.phone"
+  // Per-screen target: with one bar per monitor, identical targets collide and
+  // only one panel stays reachable — popup clicks then open the wrong monitor.
+  ipcTarget: bar && bar.screen && bar.screen.name
+    ? "omalink.phone." + bar.screen.name
+    : "omalink.phone"
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color dim: Qt.darker(foreground, 1.55)

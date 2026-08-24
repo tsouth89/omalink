@@ -190,8 +190,27 @@ handle_posted() {
   action="$(timeout 300 notify-send -a OmaLink ${icon_path:+-i "$icon_path"} \
     -A "default=Open" -- "$summary" "$body" 2>/dev/null || true)"
   if [[ $action == default ]]; then
-    qs -p "${OMARCHY_PATH:-/usr/share/omarchy}/shell" ipc call omalink.phone open >/dev/null 2>&1 || true
+    open_panel || true
   fi
+}
+
+# Open the OmaLink panel on the focused monitor. Panels register one IPC
+# target per screen ("omalink.phone.<output>"); fall back to the plain target
+# (single-bar setups) and then to any registered omalink target. A missing
+# target prints "Target not found." with exit 0, so success is empty output.
+open_panel() {
+  local shell_dir="${OMARCHY_PATH:-/usr/share/omarchy}/shell" focused target result
+  focused="$(hyprctl -j monitors 2>/dev/null \
+    | jq -r '[.[] | select(.focused == true) | .name][0] // empty' 2>/dev/null || true)"
+  for target in ${focused:+"omalink.phone.$focused"} "omalink.phone"; do
+    result="$(qs -p "$shell_dir" ipc call "$target" open 2>&1 || true)"
+    [[ -n $result ]] || return 0
+  done
+  while IFS= read -r target; do
+    result="$(qs -p "$shell_dir" ipc call "$target" open 2>&1 || true)"
+    [[ -n $result ]] || return 0
+  done < <(qs -p "$shell_dir" ipc show 2>/dev/null | sed -n 's/^target \(omalink\.phone[^ ]*\).*/\1/p')
+  return 1
 }
 
 watch() {

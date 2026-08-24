@@ -88,6 +88,12 @@ echo "qs $*" >>"$0.log"
 EOF
 chmod +x "$temp_dir/qs"
 
+cat >"$temp_dir/hyprctl" <<'EOF'
+#!/usr/bin/env bash
+printf '[{"name":"DP-9","focused":true},{"name":"HDMI-1","focused":false}]\n'
+EOF
+chmod +x "$temp_dir/hyprctl"
+
 contact_dir="$temp_dir/data/kpeoplevcard/kdeconnect-abc123"
 mkdir -p "$contact_dir"
 cat >"$contact_dir/contact.vcf" <<'EOF'
@@ -165,7 +171,7 @@ watch_out="$(XDG_RUNTIME_DIR="$temp_dir" XDG_CONFIG_HOME="$temp_dir/xdg" PATH="$
 grep -q '^\[Event/notification\]$' "$temp_dir/xdg/kdeconnect.notifyrc"
 grep -q '^Action=$' "$temp_dir/xdg/kdeconnect.notifyrc"
 grep -q 'default=Open' "$temp_dir/notify-send.log"
-grep -q 'ipc call omalink.phone open' "$temp_dir/qs.log"
+grep -q 'ipc call omalink.phone.DP-9 open' "$temp_dir/qs.log"
 if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" sms abc123 'bad;number' "Test" >/dev/null 2>&1; then
   echo "invalid SMS destination was accepted" >&2
   exit 1
