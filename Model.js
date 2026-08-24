@@ -208,6 +208,42 @@ function mergePendingOutgoing(messages, pending) {
   return { messages: merged, resolved: false }
 }
 
+function messageAttachments(message) {
+  return message && Array.isArray(message.attachments) ? message.attachments : []
+}
+
+function attachmentKind(mimeType) {
+  var mime = String(mimeType || "").toLowerCase()
+  if (mime.indexOf("image/") === 0) return "image"
+  if (mime.indexOf("video/") === 0) return "video"
+  if (mime.indexOf("audio/") === 0) return "audio"
+  return "file"
+}
+
+function attachmentLabel(mimeType) {
+  var kind = attachmentKind(mimeType)
+  if (kind === "image") return "Photo"
+  if (kind === "video") return "Video"
+  if (kind === "audio") return "Audio"
+  return "Attachment"
+}
+
+function thumbnailUri(attachment) {
+  var thumbnail = String((attachment && attachment.thumbnail) || "")
+  if (thumbnail === "") return ""
+  return "data:image/png;base64," + thumbnail
+}
+
+function previewText(conversation) {
+  if (!conversation) return ""
+  var preview = String(conversation.preview || "")
+  if (preview !== "") return preview
+  var attachments = messageAttachments(conversation)
+  if (attachments.length > 0) return attachmentLabel(attachments[0].mimeType)
+  if (Number(conversation.attachmentCount) > 0) return "Attachment"
+  return ""
+}
+
 function findConversationByTitle(conversations, title) {
   if (!Array.isArray(conversations)) return null
   var needle = String(title || "").trim().toLowerCase()
@@ -269,6 +305,11 @@ if (typeof module !== "undefined") {
     upsertConversationAfterSms: upsertConversationAfterSms,
     mergePendingConversation: mergePendingConversation,
     mergePendingOutgoing: mergePendingOutgoing,
+    messageAttachments: messageAttachments,
+    attachmentKind: attachmentKind,
+    attachmentLabel: attachmentLabel,
+    thumbnailUri: thumbnailUri,
+    previewText: previewText,
     findConversationByTitle: findConversationByTitle,
     conversationTitle: conversationTitle,
     relativeTime: relativeTime

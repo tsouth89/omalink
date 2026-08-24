@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Widgets
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
@@ -35,6 +36,12 @@ Item {
   property string pendingOpenTitle: ""
   property bool loading: false
   property string error: ""
+  property var attachmentPaths: ({})
+  property string attachmentFetchUnique: ""
+  property string attachmentFetchMode: ""
+  property bool viewerOpen: false
+  property string viewerPath: ""
+  property string viewerStatus: ""
   property double nowMs: Date.now()
 
   readonly property var filteredConversations: Model.filterConversations(conversations, searchText)
@@ -78,6 +85,10 @@ Item {
     loadingThreadId = ""
     searchText = ""
     pendingOpenTitle = ""
+    attachmentPaths = ({})
+    attachmentFetchUnique = ""
+    attachmentFetchMode = ""
+    closeViewer()
     if (!sending) {
       pendingReply = ""
       pendingThreadId = ""
@@ -173,6 +184,38 @@ Item {
     error = ""
     newMessageProcess.command = [helperPath, "sms", deviceId, destination, message]
     newMessageProcess.running = true
+  }
+
+  function openAttachment(attachment) {
+    if (!attachment) return
+    var unique = String(attachment.unique || "")
+    if (unique === "") return
+    var isImage = Model.attachmentKind(attachment.mimeType) === "image"
+    var cached = attachmentPaths[unique] || ""
+    if (isImage) {
+      viewerOpen = true
+      viewerStatus = ""
+      viewerPath = cached
+    }
+    if (cached !== "") {
+      if (!isImage) Quickshell.execDetached(["xdg-open", cached])
+      return
+    }
+    if (attachmentProcess.running) {
+      if (attachmentFetchUnique !== unique) error = "Still fetching another attachment…"
+      return
+    }
+    error = ""
+    attachmentFetchUnique = unique
+    attachmentFetchMode = isImage ? "view" : "open"
+    attachmentProcess.command = [helperPath, "attachment", deviceId, String(attachment.partId), unique]
+    attachmentProcess.running = true
+  }
+
+  function closeViewer() {
+    viewerOpen = false
+    viewerPath = ""
+    viewerStatus = ""
   }
 
   function sendReply() {
@@ -329,6 +372,48 @@ Item {
   }
 
   Process {
+    id: attachmentProcess
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var path = String(text || "").trim()
+        if (path === "") return
+        var unique = root.attachmentFetchUnique
+        var updated = {}
+        for (var key in root.attachmentPaths) updated[key] = root.attachmentPaths[key]
+        updated[unique] = path
+        root.attachmentPaths = updated
+        if (root.attachmentFetchMode === "view") {
+          if (root.viewerOpen && root.viewerPath === "") root.viewerPath = path
+        } else {
+          Quickshell.execDetached(["xdg-open", path])
+        }
+      }
+    }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        if (root.viewerOpen && root.viewerPath === "") root.viewerOpen = false
+        root.error = "Could not fetch the attachment from the phone"
+      }
+    }
+  }
+
+  Process {
+    id: saveProcess
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var target = String(text || "").trim()
+        if (target !== "") root.viewerStatus = "Saved to " + target
+      }
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) root.viewerStatus = "Could not save the image"
+    }
+  }
+
+  Process {
     id: threadProcess
     stdout: StdioCollector {
       waitForEnd: true
@@ -378,7 +463,8 @@ Item {
       anchors.fill: parent
       focus: true
       Keys.onEscapePressed: {
-        if (root.selectedConversation || root.composing) root.showConversations()
+        if (root.viewerOpen) root.closeViewer()
+        else if (root.selectedConversation || root.composing) root.showConversations()
         else root.close()
       }
       Keys.onPressed: function(event) {
@@ -578,7 +664,7 @@ Item {
 
                   Text {
                     Layout.fillWidth: true
-                    text: (modelData.incoming ? "" : "You: ") + modelData.preview
+                    text: (modelData.incoming ? "" : "You: ") + Model.previewText(modelData)
                     color: root.dim
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
@@ -621,9 +707,16 @@ Item {
 
               Rectangle {
                 id: bubble
+                readonly property var attachments: Model.messageAttachments(modelData)
+                readonly property bool incomingMessage: modelData.incoming
+                readonly property color contentColor: incomingMessage ? root.foreground : Color.menu.selectedText
                 anchors.left: modelData.incoming ? parent.left : undefined
                 anchors.right: modelData.incoming ? undefined : parent.right
-                width: Math.min(messageText.implicitWidth + Style.space(24), parent.width * 0.78)
+                width: Math.min(
+                  (attachments.length > 0
+                    ? Math.max(messageText.implicitWidth, Style.space(210))
+                    : messageText.implicitWidth) + Style.space(24),
+                  parent.width * 0.78)
                 implicitHeight: messageColumn.implicitHeight + Style.space(16)
                 color: modelData.incoming
                   ? Style.selectedFillFor(root.foreground, Color.accent)
@@ -648,14 +741,113 @@ Item {
                   anchors.margins: Style.space(8)
                   spacing: Style.space(4)
 
+                  Repeater {
+                    model: bubble.attachments
+
+                    Item {
+                      id: attachmentItem
+                      required property var modelData
+                      readonly property string kind: Model.attachmentKind(modelData.mimeType)
+                      readonly property string thumbUri: Model.thumbnailUri(modelData)
+                      readonly property bool showThumb: thumbUri !== "" && (kind === "image" || kind === "video")
+                      readonly property bool fetching: attachmentProcess.running
+                        && root.attachmentFetchUnique === String(modelData.unique || "")
+                      readonly property int thumbWidth: Math.min(Style.space(210), bubble.width - Style.space(24))
+
+                      Layout.preferredWidth: showThumb ? thumbWidth : -1
+                      Layout.fillWidth: !showThumb
+                      Layout.preferredHeight: showThumb
+                        ? (thumbImage.status === Image.Ready && thumbImage.implicitWidth > 0
+                          ? Math.min(Math.round(thumbWidth * thumbImage.implicitHeight / thumbImage.implicitWidth), Style.space(280))
+                          : Style.space(140))
+                        : tile.implicitHeight
+
+                      ClippingRectangle {
+                        visible: attachmentItem.showThumb
+                        anchors.fill: parent
+                        radius: Style.cornerRadius
+                        color: "transparent"
+
+                        Image {
+                          id: thumbImage
+                          anchors.fill: parent
+                          source: attachmentItem.thumbUri
+                          fillMode: Image.PreserveAspectCrop
+                          asynchronous: true
+                        }
+
+                        Rectangle {
+                          visible: attachmentItem.kind === "video" && !attachmentItem.fetching
+                          anchors.centerIn: parent
+                          width: Style.space(30)
+                          height: width
+                          radius: width / 2
+                          color: Qt.rgba(0, 0, 0, 0.55)
+
+                          Text {
+                            anchors.centerIn: parent
+                            text: "▶"
+                            color: "white"
+                            font.pixelSize: Style.font.caption
+                          }
+                        }
+
+                        Rectangle {
+                          visible: attachmentItem.fetching
+                          anchors.fill: parent
+                          color: Qt.rgba(0, 0, 0, 0.45)
+
+                          Text {
+                            anchors.centerIn: parent
+                            text: "Fetching…"
+                            color: "white"
+                            font.family: root.fontFamily
+                            font.pixelSize: Style.font.caption
+                          }
+                        }
+                      }
+
+                      Rectangle {
+                        id: tile
+                        visible: !attachmentItem.showThumb
+                        anchors.fill: parent
+                        implicitHeight: tileLabel.implicitHeight + Style.space(14)
+                        radius: Style.cornerRadius
+                        color: Qt.rgba(bubble.contentColor.r, bubble.contentColor.g, bubble.contentColor.b, 0.12)
+
+                        Text {
+                          id: tileLabel
+                          anchors.verticalCenter: parent.verticalCenter
+                          anchors.left: parent.left
+                          anchors.leftMargin: Style.space(8)
+                          text: attachmentItem.fetching
+                            ? "Fetching…"
+                            : Model.attachmentLabel(attachmentItem.modelData.mimeType)
+                          color: bubble.contentColor
+                          font.family: root.fontFamily
+                          font.pixelSize: Style.font.caption
+                          font.bold: true
+                        }
+                      }
+
+                      MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.openAttachment(attachmentItem.modelData)
+                      }
+                    }
+                  }
+
                   TextEdit {
                     id: messageText
+                    visible: text !== ""
                     Layout.fillWidth: true
                     readOnly: true
                     selectByMouse: true
                     text: modelData.body !== ""
                       ? modelData.body
-                      : (modelData.attachmentCount > 0 ? "Attachment" : "")
+                      : (bubble.attachments.length === 0 && modelData.attachmentCount > 0 ? "Attachment" : "")
                     color: modelData.incoming ? root.foreground : Color.menu.selectedText
                     selectionColor: modelData.incoming ? Color.menu.selectedBackground : Color.popups.background
                     selectedTextColor: modelData.incoming ? Color.menu.selectedText : root.foreground
@@ -852,6 +1044,87 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
             horizontalAlignment: Text.AlignHCenter
+          }
+        }
+      }
+
+      Rectangle {
+        visible: root.viewerOpen
+        anchors.fill: parent
+        color: Qt.rgba(0, 0, 0, 0.88)
+
+        MouseArea { anchors.fill: parent; onClicked: root.closeViewer() }
+
+        Image {
+          id: viewerImage
+          anchors.centerIn: parent
+          source: root.viewerPath !== "" ? "file://" + root.viewerPath : ""
+          asynchronous: true
+          autoTransform: true
+          fillMode: Image.PreserveAspectFit
+          width: Math.min(implicitWidth, parent.width - Style.space(64))
+          height: Math.min(implicitHeight, parent.height - Style.space(150))
+        }
+
+        Text {
+          anchors.centerIn: parent
+          visible: root.viewerPath === ""
+            || viewerImage.status === Image.Loading
+            || viewerImage.status === Image.Error
+          text: viewerImage.status === Image.Error
+            ? "Could not display this image"
+            : "Fetching full image from the phone…"
+          color: "white"
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+        }
+
+        ColumnLayout {
+          anchors.horizontalCenter: parent.horizontalCenter
+          anchors.bottom: parent.bottom
+          anchors.bottomMargin: Style.space(24)
+          spacing: Style.space(8)
+
+          Text {
+            visible: root.viewerStatus !== ""
+            Layout.alignment: Qt.AlignHCenter
+            text: root.viewerStatus
+            color: "white"
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+
+          RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            spacing: Style.space(8)
+
+            Button {
+              text: "Open"
+              enabled: root.viewerPath !== ""
+              foreground: "white"
+              fontFamily: root.fontFamily
+              bordered: true
+              onClicked: Quickshell.execDetached(["xdg-open", root.viewerPath])
+            }
+
+            Button {
+              text: "Save to Downloads"
+              enabled: root.viewerPath !== "" && !saveProcess.running
+              foreground: "white"
+              fontFamily: root.fontFamily
+              bordered: true
+              onClicked: {
+                saveProcess.command = [root.helperPath, "attachment-save", root.viewerPath]
+                saveProcess.running = true
+              }
+            }
+
+            Button {
+              text: "Close"
+              foreground: "white"
+              fontFamily: root.fontFamily
+              onClicked: root.closeViewer()
+            }
           }
         }
       }

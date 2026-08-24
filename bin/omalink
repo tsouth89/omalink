@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: omalink <status|ring|clipboard|share|dismiss|dismiss-all|notify-reply|contacts|conversations|messages|reply|sms> [arguments]" >&2
+  echo "Usage: omalink <status|ring|clipboard|share|dismiss|dismiss-all|notify-reply|contacts|conversations|messages|attachment|attachment-save|reply|sms> [arguments]" >&2
   exit 2
 }
 
@@ -227,7 +227,8 @@ conversations() {
       timestamp: $message[3],
       unread: ($message[5] == 0),
       incoming: ($message[4] == 1),
-      attachmentCount: ($message[9] | length)
+      attachmentCount: ($message[9] | length),
+      attachments: [$message[9][]? | {partId: .[0], mimeType: .[1], thumbnail: .[2], unique: .[3]}]
     }]
     | sort_by(.timestamp)
     | reverse
@@ -271,11 +272,75 @@ messages() {
           body: .[1],
           timestamp: .[3],
           incoming: (.[4] == 1),
-          attachmentCount: (.[9] | length)
+          attachmentCount: (.[9] | length),
+          attachments: [.[9][]? | {partId: .[0], mimeType: .[1], thumbnail: .[2], unique: .[3]}]
         }]
-    | unique_by(.timestamp, .body)
+    | unique_by(.timestamp, .body, ([.attachments[].unique] | join("|")))
     | sort_by(.timestamp)
   ' "$capture_file"
+}
+
+attachment() {
+  local device_id="${1:-}" part_id="${2:-}" unique="${3:-}" device_path capture_dir capture_file monitor_pid path attempt
+  [[ $device_id =~ ^[A-Za-z0-9]+$ && $part_id =~ ^-?[0-9]+$ && $unique =~ ^[[:print:]]+$ ]] || usage
+  device_path="/modules/kdeconnect/devices/$device_id"
+  capture_dir="$(mktemp -d)"
+  capture_file="$capture_dir/signals"
+  monitor_pid=""
+
+  cleanup_attachment() {
+    [[ -z $monitor_pid ]] || kill "$monitor_pid" 2>/dev/null || true
+    rm -r "$capture_dir"
+  }
+  trap cleanup_attachment RETURN
+
+  stdbuf -oL busctl --user --json=short monitor org.kde.kdeconnect >"$capture_file" &
+  monitor_pid=$!
+  sleep 0.1
+  busctl --user call org.kde.kdeconnect "$device_path" \
+    org.kde.kdeconnect.device.conversations requestAttachmentFile xs "$part_id" "$unique" >/dev/null
+
+  path=""
+  for attempt in $(seq 1 60); do
+    path="$(jq -r --arg unique "$unique" '
+      select(.type == "signal"
+          and .interface == "org.kde.kdeconnect.device.conversations"
+          and .member == "attachmentReceived")
+      | select(.payload.data[1] == $unique)
+      | .payload.data[0]
+    ' "$capture_file" 2>/dev/null | head -n 1)"
+    [[ -z $path ]] || break
+    sleep 0.5
+  done
+
+  if [[ -z $path || ! -f $path ]]; then
+    echo "Attachment did not arrive from the phone" >&2
+    exit 1
+  fi
+  printf '%s\n' "$path"
+}
+
+attachment_save() {
+  local source="${1:-}" downloads base name ext target n
+  [[ -n $source && -f $source ]] || usage
+  downloads="$(xdg-user-dir DOWNLOAD 2>/dev/null || true)"
+  [[ -n $downloads && $downloads != "$HOME" ]] || downloads="$HOME/Downloads"
+  mkdir -p "$downloads"
+  base="$(basename "$source")"
+  target="$downloads/$base"
+  n=1
+  while [[ -e $target ]]; do
+    name="${base%.*}"
+    ext="${base##*.}"
+    if [[ -z $name || $name == "$base" ]]; then
+      target="$downloads/$base-$n"
+    else
+      target="$downloads/$name-$n.$ext"
+    fi
+    n=$((n + 1))
+  done
+  cp "$source" "$target"
+  printf '%s\n' "$target"
 }
 
 reply() {
@@ -305,6 +370,8 @@ case "${1:-}" in
   contacts) shift; contacts "${1:-}" ;;
   conversations) shift; conversations "${1:-}" ;;
   messages) shift; messages "${1:-}" "${2:-}" ;;
+  attachment) shift; attachment "${1:-}" "${2:-}" "${3:-}" ;;
+  attachment-save) shift; attachment_save "${1:-}" ;;
   reply) shift; reply "${1:-}" "${2:-}" "${3:-}" ;;
   sms) shift; send_sms "${1:-}" "${2:-}" "${3:-}" ;;
   *) usage ;;

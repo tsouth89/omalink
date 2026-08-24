@@ -14,6 +14,8 @@ account or cloud relay.
 - Open a text's conversation straight from its notification
 - SMS conversation list with contact names, search, and unread state
 - Read conversations, copy message text, send replies, and start new messages
+- MMS photos inline, with a full-size viewer, save to Downloads, and open
+  actions; videos and other attachments open in their default app
 - Send the desktop clipboard to the phone
 - Send text or links to the phone
 - Ring a misplaced phone

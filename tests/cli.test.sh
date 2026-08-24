@@ -38,7 +38,12 @@ chmod +x "$temp_dir/kdeconnect-cli"
 
 cat >"$temp_dir/busctl" <<'EOF'
 #!/usr/bin/env bash
-if [[ " $* " == *" replyToConversation "* || " $* " == *" sendReply "* ]]; then
+if [[ " $* " == *" replyToConversation "* || " $* " == *" sendReply "* || " $* " == *" requestAttachmentFile "* ]]; then
+  exit 0
+fi
+if [[ " $* " == *" monitor "* ]]; then
+  printf '{"type":"signal","interface":"org.kde.kdeconnect.device.conversations","member":"attachmentReceived","payload":{"data":["%s","PART_1.jpeg"]}}\n' "$(dirname "$0")/attachment-full.jpg"
+  sleep 3
   exit 0
 fi
 case "${*: -1}" in
@@ -51,7 +56,7 @@ case "${*: -1}" in
     printf '%s\n' '{"type":"as","data":[["notif.1","notif.2"]]}'
     ;;
   activeConversations)
-    printf '%s\n' '{"type":"av","data":[[{"type":"(isa(s)xiixixa(xsss))","data":[1,"Newest",[["+15550000001"]],2000,1,0,7,10,-1,[]]},{"type":"(isa(s)xiixixa(xsss))","data":[1,"Older",[["+15550000002"]],1000,2,1,8,11,-1,[]]}]]}'
+    printf '%s\n' '{"type":"av","data":[[{"type":"(isa(s)xiixixa(xsss))","data":[1,"Newest",[["+15550000001"]],2000,1,0,7,10,-1,[[42,"image/jpeg","VGh1bWI=","PART_1.jpeg"]]]},{"type":"(isa(s)xiixixa(xsss))","data":[1,"Older",[["+15550000002"]],1000,2,1,8,11,-1,[]]}]]}'
     ;;
   *) exit 1 ;;
 esac
@@ -85,6 +90,16 @@ contacts="$(XDG_DATA_HOME="$temp_dir/data" PATH="$temp_dir:/usr/bin" "$project_d
 jq -e 'length == 1 and .[0].name == "Alex Rivera" and .[0].number == "+15550000001"' <<<"$contacts" >/dev/null
 conversations="$(XDG_DATA_HOME="$temp_dir/data" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" conversations abc123)"
 jq -e 'length == 2 and .[0].threadId == 7 and .[0].unread == true and .[0].names[0] == "Alex Rivera" and .[1].incoming == false' <<<"$conversations" >/dev/null
+jq -e '.[0].attachments[0] == {partId: 42, mimeType: "image/jpeg", thumbnail: "VGh1bWI=", unique: "PART_1.jpeg"} and .[1].attachments == []' <<<"$conversations" >/dev/null
+printf 'jpegbytes' >"$temp_dir/attachment-full.jpg"
+attachment_path="$(PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" attachment abc123 42 PART_1.jpeg)"
+[[ $attachment_path == "$temp_dir/attachment-full.jpg" ]]
+saved_home="$temp_dir/home"
+mkdir -p "$saved_home"
+first_save="$(HOME="$saved_home" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" attachment-save "$temp_dir/attachment-full.jpg")"
+[[ $first_save == "$saved_home/Downloads/attachment-full.jpg" && -f $first_save ]]
+second_save="$(HOME="$saved_home" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" attachment-save "$temp_dir/attachment-full.jpg")"
+[[ $second_save == "$saved_home/Downloads/attachment-full-1.jpg" && -f $second_save ]]
 if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" dismiss '../bad' notification-1 >/dev/null 2>&1; then
   echo "invalid device id was accepted" >&2
   exit 1
@@ -95,6 +110,10 @@ if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" reply abc123 bad "Test r
 fi
 if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" notify-reply abc123 'bad reply;id' "Quick reply" >/dev/null 2>&1; then
   echo "invalid reply id was accepted" >&2
+  exit 1
+fi
+if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" attachment abc123 notanumber PART_1.jpeg >/dev/null 2>&1; then
+  echo "invalid attachment part id was accepted" >&2
   exit 1
 fi
 if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" sms abc123 'bad;number' "Test" >/dev/null 2>&1; then
