@@ -281,6 +281,21 @@ Panel {
           color: Style.selectedFillFor(root.foreground, Color.accent)
           radius: Style.cornerRadius
 
+          MouseArea {
+            visible: modelData.isConversation
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+              var deviceId = phone.devices[0].id
+              root.close()
+              bar.shell.summon("omalink.phone", JSON.stringify({
+                deviceId: deviceId,
+                conversationHint: modelData.title
+              }))
+            }
+          }
+
           RowLayout {
             id: notificationRow
             anchors.fill: parent

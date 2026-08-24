@@ -32,6 +32,7 @@ Item {
   property string pendingReply: ""
   property string pendingThreadId: ""
   property string searchText: ""
+  property string pendingOpenTitle: ""
   property bool loading: false
   property string error: ""
   property double nowMs: Date.now()
@@ -49,6 +50,7 @@ Item {
     var payload = {}
     try { payload = JSON.parse(String(payloadJson || "{}")) || {} } catch (parseError) { payload = {} }
     deviceId = String(payload.deviceId || "")
+    pendingOpenTitle = String(payload.conversationHint || "")
     searchText = ""
     opened = true
     refreshContacts()
@@ -75,6 +77,7 @@ Item {
     messageCache = ({})
     loadingThreadId = ""
     searchText = ""
+    pendingOpenTitle = ""
     if (!sending) {
       pendingReply = ""
       pendingThreadId = ""
@@ -209,6 +212,11 @@ Item {
           }
         } else {
           root.conversations = fetched
+        }
+        if (root.pendingOpenTitle !== "") {
+          var target = Model.findConversationByTitle(root.conversations, root.pendingOpenTitle)
+          root.pendingOpenTitle = ""
+          if (target && !root.selectedConversation && !root.composing) root.openThread(target)
         }
       }
     }

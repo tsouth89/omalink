@@ -208,6 +208,23 @@ function mergePendingOutgoing(messages, pending) {
   return { messages: merged, resolved: false }
 }
 
+function findConversationByTitle(conversations, title) {
+  if (!Array.isArray(conversations)) return null
+  var needle = String(title || "").trim().toLowerCase()
+  if (needle === "") return null
+  for (var i = 0; i < conversations.length; i++) {
+    var conversation = conversations[i]
+    if (!conversation) continue
+    var values = []
+    if (conversation.names) values = values.concat(conversation.names)
+    if (conversation.addresses) values = values.concat(conversation.addresses)
+    for (var j = 0; j < values.length; j++) {
+      if (String(values[j]).trim().toLowerCase() === needle) return conversation
+    }
+  }
+  return null
+}
+
 function conversationTitle(conversation) {
   if (!conversation) return "Unknown sender"
   var values = conversation.names && conversation.names.length ? conversation.names : conversation.addresses
@@ -252,6 +269,7 @@ if (typeof module !== "undefined") {
     upsertConversationAfterSms: upsertConversationAfterSms,
     mergePendingConversation: mergePendingConversation,
     mergePendingOutgoing: mergePendingOutgoing,
+    findConversationByTitle: findConversationByTitle,
     conversationTitle: conversationTitle,
     relativeTime: relativeTime
   }
