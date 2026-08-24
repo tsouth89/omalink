@@ -12,9 +12,10 @@ Panel {
   moduleName: "omalink.phone"
   // Per-screen target: with one bar per monitor, identical targets collide and
   // only one panel stays reachable — popup clicks then open the wrong monitor.
-  ipcTarget: bar && bar.screen && bar.screen.name
-    ? "omalink.phone." + bar.screen.name
-    : "omalink.phone"
+  readonly property var panelWindow: QsWindow.window
+  readonly property string screenName: panelWindow && panelWindow.screen && panelWindow.screen.name
+    ? String(panelWindow.screen.name) : ""
+  ipcTarget: screenName !== "" ? "omalink.phone." + screenName : "omalink.phone"
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color dim: Qt.darker(foreground, 1.55)
