@@ -113,6 +113,23 @@ Item {
   }
 
   Process {
+    id: watchProcess
+    command: [root.helperPath, "watch"]
+    running: true
+    stdout: SplitParser {
+      onRead: root.refresh()
+    }
+    onExited: watchRestart.restart()
+  }
+
+  Timer {
+    id: watchRestart
+    interval: 5000
+    repeat: false
+    onTriggered: watchProcess.running = true
+  }
+
+  Process {
     id: statusProcess
     stdout: StdioCollector {
       waitForEnd: true

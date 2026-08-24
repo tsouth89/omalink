@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: omalink <status|ring|clipboard|share|dismiss|dismiss-all|notify-reply|contacts|conversations|messages|attachment|attachment-save|reply|sms> [arguments]" >&2
+  echo "Usage: omalink <status|watch|ring|clipboard|share|dismiss|dismiss-all|notify-reply|contacts|conversations|messages|attachment|attachment-save|reply|sms> [arguments]" >&2
   exit 2
 }
 
@@ -143,6 +143,79 @@ dismiss_notification() {
   busctl --user call org.kde.kdeconnect \
     "/modules/kdeconnect/devices/$device_id/notifications/$notification_id" \
     org.kde.kdeconnect.device.notifications.notification dismiss >/dev/null
+}
+
+# KDE Connect's own desktop popups for phone notifications carry no default
+# action, so clicking them in the Omarchy notification popup does nothing.
+# OmaLink silences that one event and emits its own popups instead, with a
+# click action that opens the OmaLink panel. Message contents are never shown
+# in popups; they are readable in the panel and Messages window.
+ensure_quiet_daemon_popups() {
+  local config="${XDG_CONFIG_HOME:-$HOME/.config}/kdeconnect.notifyrc"
+  mkdir -p "$(dirname "$config")"
+  if [[ -e $config ]]; then
+    grep -q '^\[Event/notification\]' "$config" \
+      || printf '\n[Event/notification]\nAction=\n' >>"$config"
+    return 0
+  fi
+  printf '# Written by OmaLink: it shows its own phone notification popups.\n[Event/notification]\nAction=\n' >"$config"
+}
+
+notify_escape() {
+  local value="$1"
+  value="${value//&/&amp;}"
+  value="${value//</&lt;}"
+  value="${value//>/&gt;}"
+  printf '%s' "$value"
+}
+
+handle_posted() {
+  local device_id="$1" notification_id="$2" notification_path app_name title text is_conversation icon_path summary body action
+  [[ $device_id =~ ^[A-Za-z0-9]+$ && $notification_id =~ ^[A-Za-z0-9._:-]+$ ]] || return 0
+  sleep 0.3
+  notification_path="/modules/kdeconnect/devices/$device_id/notifications/$notification_id"
+  app_name="$(dbus_json_property "$notification_path" appName)"
+  title="$(dbus_json_property "$notification_path" title)"
+  text="$(dbus_json_property "$notification_path" text)"
+  is_conversation="$(dbus_json_property "$notification_path" isConversation)"
+  icon_path="$(dbus_json_property "$notification_path" iconPath)"
+  [[ ${app_name,,} == spotify && $is_conversation != true ]] && return 0
+  if [[ $is_conversation == true ]]; then
+    summary="New message"
+    body="Open OmaLink to read it"
+  else
+    summary="${title:-${app_name:-Phone notification}}"
+    body="$(notify_escape "$text")"
+  fi
+  action="$(timeout 300 notify-send -a OmaLink ${icon_path:+-i "$icon_path"} \
+    -A "default=Open" -- "$summary" "$body" 2>/dev/null || true)"
+  if [[ $action == default ]]; then
+    qs -p "${OMARCHY_PATH:-/usr/share/omarchy}/shell" ipc call omalink.phone open >/dev/null 2>&1 || true
+  fi
+}
+
+watch() {
+  command -v dbus-monitor >/dev/null 2>&1 || { echo "dbus-monitor is required" >&2; exit 1; }
+  ensure_quiet_daemon_popups || true
+  local line device_id="" notification_id
+  while IFS= read -r line; do
+    case $line in
+      *"member=notificationPosted"*)
+        device_id="${line#*path=/modules/kdeconnect/devices/}"
+        device_id="${device_id%%/*}"
+        ;;
+      *'string "'*)
+        [[ -n $device_id ]] || continue
+        notification_id="${line#*string \"}"
+        notification_id="${notification_id%\"*}"
+        handle_posted "$device_id" "$notification_id" &
+        printf 'posted %s %s\n' "$device_id" "$notification_id"
+        device_id=""
+        ;;
+    esac
+  done < <(dbus-monitor --session \
+    "type='signal',interface='org.kde.kdeconnect.device.notifications',member='notificationPosted'" 2>/dev/null)
+  wait
 }
 
 notify_reply() {
@@ -361,6 +434,7 @@ send_sms() {
 
 case "${1:-}" in
   status) status ;;
+  watch) watch ;;
   ring) shift; ring "${1:-}" ;;
   clipboard) shift; send_clipboard "${1:-}" ;;
   share) shift; share_text "${1:-}" "${2:-}" ;;

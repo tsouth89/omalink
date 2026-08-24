@@ -63,6 +63,26 @@ esac
 EOF
 chmod +x "$temp_dir/busctl"
 
+cat >"$temp_dir/dbus-monitor" <<'EOF'
+#!/usr/bin/env bash
+printf 'signal time=1.0 sender=:1.5 -> destination=(null destination) serial=9 path=/modules/kdeconnect/devices/abc123/notifications; interface=org.kde.kdeconnect.device.notifications; member=notificationPosted\n'
+printf '   string "notif.9"\n'
+EOF
+chmod +x "$temp_dir/dbus-monitor"
+
+cat >"$temp_dir/notify-send" <<'EOF'
+#!/usr/bin/env bash
+echo "notify $*" >>"$0.log"
+echo default
+EOF
+chmod +x "$temp_dir/notify-send"
+
+cat >"$temp_dir/qs" <<'EOF'
+#!/usr/bin/env bash
+echo "qs $*" >>"$0.log"
+EOF
+chmod +x "$temp_dir/qs"
+
 contact_dir="$temp_dir/data/kpeoplevcard/kdeconnect-abc123"
 mkdir -p "$contact_dir"
 cat >"$contact_dir/contact.vcf" <<'EOF'
@@ -116,6 +136,13 @@ if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" attachment abc123 notanu
   echo "invalid attachment part id was accepted" >&2
   exit 1
 fi
+
+watch_out="$(XDG_CONFIG_HOME="$temp_dir/xdg" PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" watch)"
+[[ $watch_out == "posted abc123 notif.9" ]]
+grep -q '^\[Event/notification\]$' "$temp_dir/xdg/kdeconnect.notifyrc"
+grep -q '^Action=$' "$temp_dir/xdg/kdeconnect.notifyrc"
+grep -q 'default=Open' "$temp_dir/notify-send.log"
+grep -q 'ipc call omalink.phone open' "$temp_dir/qs.log"
 if PATH="$temp_dir:/usr/bin" "$project_dir/bin/omalink" sms abc123 'bad;number' "Test" >/dev/null 2>&1; then
   echo "invalid SMS destination was accepted" >&2
   exit 1

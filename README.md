@@ -10,6 +10,10 @@ account or cloud relay.
 
 - Connected phone, battery, charging state, network type, and signal strength
 - Android notifications with dismissal on the phone, one by one or all at once
+- Notification popups that open the OmaLink panel on click, with message
+  contents always hidden in popups (read them in the panel instead)
+- Unread text messages readable directly in the panel, even when the phone
+  redacts notification contents; click one to open its conversation
 - Quick reply to notifications from messaging apps
 - Open a text's conversation straight from its notification
 - SMS conversation list with contact names, search, and unread state
@@ -58,6 +62,15 @@ Connect.
 
 Message history is requested from the phone when needed. OmaLink does not add
 its own cloud service or persistent message database.
+
+## Notification popups
+
+KDE Connect's own desktop popups for phone notifications cannot open anything
+when clicked, so OmaLink silences that single popup event (by writing an
+`[Event/notification]` override to `~/.config/kdeconnect.notifyrc`) and shows
+its own popups instead. Clicking an OmaLink popup opens the OmaLink panel.
+Popups for messages never include the message contents; the panel and the
+Messages window show them.
 
 ## Development
 
