@@ -40,7 +40,7 @@ account or cloud relay.
 Install and enable OmaLink:
 
 ```sh
-omarchy plugin add https://github.com/tsouth89/omalink.git --enable
+omarchy plugin add https://github.com/btsouth/omalink.git --enable
 ```
 
 If KDE Connect is not installed yet:
